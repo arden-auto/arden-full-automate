@@ -21,6 +21,7 @@ FULL_SHEET = "Arden_Full_Feed_Master"
 SEMI_SHEET = "Arden_Feed_Master"
 DRY_RUN = (os.getenv("DRY_RUN") or "1").strip().lower() not in ("0", "no", "false", "")
 LIMIT = int(os.getenv("MIGRATE_LIMIT") or "0")  # 0 = no cap
+INCLUDE_SUSPENDED = (os.getenv("INCLUDE_SUSPENDED") or "").strip().lower() in ("1", "yes", "true")
 
 
 def live_opcs():
@@ -95,8 +96,16 @@ def main():
             continue
         opc = opcs.get(sku)
         if not opc:
-            deferred += 1
-            continue
+            # Suspended listings are invisible to GET /v2/listings, so no OPC
+            # is harvestable for them. With INCLUDE_SUSPENDED they migrate
+            # with a blank OPC anyway: Sync Status "Synced" alone keeps the
+            # pipeline on the by-SKU UPDATE path (never the create fallback),
+            # and the suspended-locked guard in generate_xml.py bounces a
+            # still-suspended listing back to rotation instead of failing it.
+            if not INCLUDE_SUSPENDED:
+                deferred += 1
+                continue
+            opc = ""
         cat = str(row.get("Category") or "").strip()
         if cat.lower() not in valid_cats:
             cat = ""
@@ -104,7 +113,9 @@ def main():
         if LIMIT and len(migrate) >= LIMIT:
             break
 
-    print(f"\nPLAN: migrate {len(migrate)} | deferred (no live listing - phase 2): {deferred} | "
+    no_opc = sum(1 for m in migrate if not m[3])
+    print(f"\nPLAN: migrate {len(migrate)} ({no_opc} without OPC - suspended/not yet visible) | "
+          f"deferred (no live listing - phase 2): {deferred} | "
           f"already in full sheet: {skipped_dupe} | no eBay URL: {skipped_nourl}")
     for sku, url, cat, opc in migrate[:8]:
         print(f"  {sku}  opc={opc}  cat={'kept' if cat else 'blank->worklist'}")

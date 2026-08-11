@@ -6,6 +6,9 @@ on:
       dry_run:
         description: "Report what would migrate without writing (yes/no)"
         default: "yes"
+      include_suspended:
+        description: "Also migrate rows whose listings are hidden (suspended) - blank OPC (yes/no)"
+        default: "no"
 
 # Reads the OnBuy listings for the OPC harvest - share the API quota.
 concurrency:
@@ -40,4 +43,5 @@ jobs:
           ONBUY_SELLER_ID: ${{ secrets.ONBUY_SELLER_ID }}
           ONBUY_SITE_ID: ${{ secrets.ONBUY_SITE_ID }}
           DRY_RUN: ${{ inputs.dry_run == 'no' && '0' || '1' }}
+          INCLUDE_SUSPENDED: ${{ inputs.include_suspended == 'yes' && '1' || '0' }}
         run: python migrate_semi_rows.py
