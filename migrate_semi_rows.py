@@ -73,6 +73,9 @@ def main():
     full_headers = [str(h).strip() for h in full.row_values(1)]
     full_skus = {str(r.get("SKU") or "").strip() for r in full.get_all_records()}
     semi_rows = semi.get_all_records()
+    # Same key hygiene the pipelines use: a stray space in a semi header
+    # ("SKU ") makes row.get("SKU") return None on every row otherwise.
+    semi_rows = [{str(k).strip(): v for k, v in row.items()} for row in semi_rows]
     print(f"semi rows: {len(semi_rows)} | full sheet already has {len(full_skus)} SKUs")
 
     opcs = live_opcs()
