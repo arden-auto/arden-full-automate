@@ -84,6 +84,8 @@ def main():
         url = str(row.get("Supplier URL") or "").strip()
         if not sku or "ebay." not in url.lower():
             skipped_nourl += 1
+            if skipped_nourl <= 5:
+                print(f"  sample non-eBay row: {sku} url={url[:70]!r}")
             continue
         if sku in full_skus:
             skipped_dupe += 1
