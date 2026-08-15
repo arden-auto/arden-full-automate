@@ -87,14 +87,14 @@ def main():
     import supabase_db
     full = supabase_db.fetch_full_rows(sorted(found))
     if full:
-        for row in full:
+        for row in full.values():
             row["Sync Status"] = ""
             row["OPC"] = ""
             row["OnBuy Product ID"] = ""
             row["OnBuy Product Created"] = None
             row["OnBuy Listing Active"] = None
             row["Last OnBuy Sync"] = None
-        supabase_db.upsert_products(full)
+        supabase_db.upsert_products(list(full.values()))
         print(f"SUPABASE cleared on {len(full)} row(s)")
     else:
         print("SUPABASE: no rows found for these SKUs - nothing to clear")
