@@ -80,6 +80,26 @@ def main():
         sheet.batch_update([dict(u) for u in updates[i:i + CHUNK]], value_input_option="RAW")
     print(f"CLEARED {len(cols)} column(s) on {len(found)} row(s) - next runs re-create them fresh")
 
+    # The anti-duplicate guard reads the Supabase mirror too (existing.get
+    # ("OPC")) - clearing only the sheet leaves already_created TRUE and the
+    # rows defer forever instead of re-creating (seen live 2026-08-15).
+    # Fetch-merge-upsert the same SKUs with their OnBuy state cleared.
+    import supabase_db
+    full = supabase_db.fetch_full_rows(sorted(found))
+    if full:
+        for row in full:
+            row["Sync Status"] = ""
+            row["OPC"] = ""
+            row["OnBuy Product ID"] = ""
+            row["OnBuy Product Created"] = None
+            row["OnBuy Listing Active"] = None
+            row["Last OnBuy Sync"] = None
+        supabase_db.upsert_products(full)
+        print(f"SUPABASE cleared on {len(full)} row(s)")
+    else:
+        print("SUPABASE: no rows found for these SKUs - nothing to clear")
+
+
 
 if __name__ == "__main__":
     main()
