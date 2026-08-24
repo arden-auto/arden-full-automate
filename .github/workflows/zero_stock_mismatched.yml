@@ -6,6 +6,10 @@ on:
       dry_run:
         description: "List targets without changing stock (yes/no)"
         default: "yes"
+      zero_skus:
+        description: "Comma-separated SKUs to zero regardless of name match"
+        required: false
+        default: ""
 
 # Reads the live OnBuy listings - shares the API quota/token with the sync,
 # so queue behind it rather than overlapping (see run.yml for why).
@@ -33,6 +37,7 @@ jobs:
       - name: Probe live listings
         env:
           DRY_RUN: ${{ inputs.dry_run == 'no' && '0' || '1' }}
+          ZERO_SKUS: ${{ inputs.zero_skus }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           ONBUY_USE_SANDBOX: ${{ vars.ONBUY_USE_SANDBOX }}
           ONBUY_CONSUMER_KEY: ${{ secrets.ONBUY_CONSUMER_KEY }}
