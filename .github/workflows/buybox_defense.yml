@@ -16,7 +16,7 @@ on:
         required: false
         default: "100"
   schedule:
-    - cron: "17 4 * * *"   # daily, live (API-driven since 2026-08-21: GET /v2/listings/check-winning)
+    - cron: "26 5 * * *"   # daily, live; moved off 04:17 - three mornings displaced by the sync/backfill queue (2026-08-25)
 
 # Reads/writes OnBuy listings - shares the API quota/token with the sync,
 # so queue behind it rather than overlapping (see run.yml for why).
