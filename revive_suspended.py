@@ -28,6 +28,10 @@ from retry_utils import with_retry
 
 DRY_RUN = (os.getenv("DRY_RUN") or "1").strip().lower() not in ("0", "no", "false", "")
 LIMIT = int(os.getenv("LIMIT") or "0")  # 0 = all
+# The export carries junk GBP0.01 placeholder prices on 80 rows (the very
+# below-minimum values that got them suspended) - never push a price under
+# this floor; such rows go to the NO-SOURCE worklist instead.
+MIN_PRICE = float(os.getenv("MIN_PRICE") or "1.00")
 CSV_PATH = os.getenv("CSV_PATH") or "suspended_arden.csv"
 SHEET_NAME = os.getenv("SHEET_NAME") or "Arden_Full_Feed_Master"
 
@@ -74,9 +78,9 @@ def main():
         sp = fnum(srow.get("Selling Price (£)")) if srow else 0.0
         sst = int(fnum(srow.get("Stock"))) if srow else 0
         cp, cst = fnum(r.get("price")), int(fnum(r.get("stock")))
-        if sp > 0:
+        if sp >= MIN_PRICE:
             plan.append((sku, sp, sst if sst > 0 else max(cst, 0), "sheet"))
-        elif cp > 0:
+        elif cp >= MIN_PRICE:
             plan.append((sku, cp, cst, "csv"))
         else:
             no_source.append(sku)
