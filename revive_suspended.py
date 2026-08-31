@@ -86,6 +86,12 @@ def main():
             no_source.append(sku)
     from collections import Counter
     print(f"pushable: {len(plan)} ({Counter(s for *_, s in plan)}) | no-source: {len(no_source)}")
+    # Sheet-membership census: only SKUs with a sheet row (supplier link)
+    # get ongoing price/stock syncing - revived listings without one go
+    # stale again (user, 2026-08-31).
+    for r in sus:
+        _s = r["sku"].strip()
+        print(f"MEMBER|{_s}|{'yes' if _s in by_sku else 'no'}")
     for s in no_source:
         print(f"  NO-SOURCE {s}")
     if LIMIT:
