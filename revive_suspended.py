@@ -86,10 +86,8 @@ def main():
             no_source.append(sku)
     from collections import Counter
     print(f"pushable: {len(plan)} ({Counter(s for *_, s in plan)}) | no-source: {len(no_source)}")
-    for s in no_source[:20]:
+    for s in no_source:
         print(f"  NO-SOURCE {s}")
-    if len(no_source) > 20:
-        print(f"  ... plus {len(no_source) - 20} more")
     if LIMIT:
         plan = plan[:LIMIT]
         print(f"LIMIT: probing first {len(plan)}")
