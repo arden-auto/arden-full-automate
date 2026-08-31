@@ -15,7 +15,10 @@ suggests it may work now). Batched via update_listings_by_sku_batch,
 """
 import csv
 import io
+import logging
 import os
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
