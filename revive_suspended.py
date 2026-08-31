@@ -102,7 +102,8 @@ def main():
     fail_reasons = Counter()
     for c in range(0, len(plan), 500):
         chunk = plan[c:c + 500]
-        listings = [{"sku": s, "price": round(p, 2), "stock": st} for s, p, st, _ in chunk]
+        # client expects [(sku, price, stock), ...] tuples
+        listings = [(s, round(p, 2), st) for s, p, st, _ in chunk]
         try:
             res = onbuy.update_listings_by_sku_batch(listings)
         except Exception as exc:
@@ -110,7 +111,8 @@ def main():
             failed += len(chunk)
             fail_reasons[str(exc)[:60]] += len(chunk)
             continue
-        items = res.get("results", []) if isinstance(res, dict) else []
+        # client returns the raw per-item result LIST
+        items = res if isinstance(res, list) else (res.get("results", []) if isinstance(res, dict) else [])
         seen = {}
         for it in items:
             it = it or {}
