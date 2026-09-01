@@ -1,11 +1,10 @@
 """One-off (2026-08-31, user request): revive the "Price below minimum"
 suspended listings by pushing a valid price/stock per SKU.
 
-Source of values, per SKU (margin-safe, user-approved):
-  1) the sheet row's Selling Price/Stock when the SKU exists there with a
-     usable price (the managed truth - never undercut it with export data);
-  2) else the suspended-export CSV's own price/stock when price > 0;
-  3) else reported as NO-SOURCE (team worklist - no push).
+Value rule (2026-09-01, user policy): ONLY SKUs with a full-auto sheet
+row carrying a Supplier URL are pushed, using the sheet's price/stock -
+a revival without a managed row goes stale again and is pointless.
+Export-only SKUs are reported, never pushed.
 
 Probe first: LIMIT=5 tests whether OnBuy accepts by-SKU updates on
 suspended listings at all (the pipeline's suspended-locked class says
@@ -71,29 +70,41 @@ def main():
             if key:
                 by_sku[key] = r
 
-    plan, no_source = [], []
+    # 2026-09-01 policy (user): ONLY revive SKUs that live in the full-auto
+    # sheet WITH a supplier link - a revival without a managed row goes
+    # stale again. Export SKUs may lack leading zeros the sheet keeps (or
+    # vice versa) - digit-core fallback join, unique matches only.
+    core = {}
+    for k in by_sku:
+        core.setdefault(k.lstrip("0") or k, []).append(k)
+    plan = []
+    skipped_no_row, skipped_no_url, skipped_no_price = [], [], []
     for r in sus:
         sku = r["sku"].strip()
         srow = by_sku.get(sku)
-        sp = fnum(srow.get("Selling Price (£)")) if srow else 0.0
-        sst = int(fnum(srow.get("Stock"))) if srow else 0
-        cp, cst = fnum(r.get("price")), int(fnum(r.get("stock")))
-        if sp >= MIN_PRICE:
-            plan.append((sku, sp, sst if sst > 0 else max(cst, 0), "sheet"))
-        elif cp >= MIN_PRICE:
-            plan.append((sku, cp, cst, "csv"))
-        else:
-            no_source.append(sku)
+        if srow is None:
+            cands = core.get(sku.lstrip("0") or sku) or []
+            if len(cands) == 1:
+                srow = by_sku[cands[0]]
+        if srow is None:
+            skipped_no_row.append(sku)
+            continue
+        if not str(srow.get("Supplier URL") or "").strip():
+            skipped_no_url.append(sku)
+            continue
+        sp = fnum(srow.get("Selling Price (£)"))
+        sst = int(fnum(srow.get("Stock")))
+        if sp < MIN_PRICE:
+            skipped_no_price.append(sku)
+            continue
+        plan.append((sku, sp, max(sst, 0), "sheet"))
     from collections import Counter
-    print(f"pushable: {len(plan)} ({Counter(s for *_, s in plan)}) | no-source: {len(no_source)}")
-    # Sheet-membership census: only SKUs with a sheet row (supplier link)
-    # get ongoing price/stock syncing - revived listings without one go
-    # stale again (user, 2026-08-31).
-    for r in sus:
-        _s = r["sku"].strip()
-        print(f"MEMBER|{_s}|{'yes' if _s in by_sku else 'no'}")
-    for s in no_source:
-        print(f"  NO-SOURCE {s}")
+    print(f"pushable (sheet+link): {len(plan)} | skipped: not-in-sheet {len(skipped_no_row)}, "
+          f"link-missing {len(skipped_no_url)}, sheet-price-missing {len(skipped_no_price)}")
+    for s in skipped_no_url:
+        print(f"  NO-LINK {s}")
+    for s in skipped_no_price:
+        print(f"  NO-PRICE {s}")
     if LIMIT:
         plan = plan[:LIMIT]
         print(f"LIMIT: probing first {len(plan)}")
