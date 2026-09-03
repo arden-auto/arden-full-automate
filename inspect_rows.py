@@ -79,7 +79,7 @@ def main():
 
     c = {k: col(k) for k in ["SKU", "Supplier URL", "Title", "Description", "Image URL",
                              "Sync Status", "OPC", "Last OnBuy Sync", "Selling Price (£)",
-                             "Cost Price (£)", "Last Checked Time"]}
+                             "Cost Price (£)", "Last Checked Time", "Brand"]}
     if c["Supplier URL"] is None:
         for i, h in enumerate(headers):
             hl = h.lower()
@@ -116,6 +116,7 @@ def main():
             verdict = "OK" if own >= max(prev, nxt) else ("NEXT-ROW?" if nxt > prev else "PREV-ROW?")
             print("")
             print(f"ROW {r} | SKU {cell(r, 'SKU')} | {cell(r, 'Sync Status')} | OPC {cell(r, 'OPC')} | sync {cell(r, 'Last OnBuy Sync')} | checked {cell(r, 'Last Checked Time')}")
+            print(f"  brand: {cell(r, 'Brand')!r}")
             print(f"  link : {cell(r, 'Supplier URL')[:110]}")
             print(f"  title: {cell(r, 'Title')[:140]}")
             print(f"  desc : {text_head(cell(r, 'Description'))}")
