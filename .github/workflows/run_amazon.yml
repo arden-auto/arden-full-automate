@@ -7,7 +7,7 @@ name: Amazon Sync (Keepa)
 # so each hour carries one pipeline's OnBuy pushes (240 calls/hour quota).
 on:
   schedule:
-    - cron: "42 1-23/2 * * *"   # odd hours :42 - the eBay sync takes the even hours (:07); the second Keepa key is shared with YRA (even hours), so the pair never overlaps
+    - cron: "42 1-21/4 * * *"   # every 4h / 6 a day: odd hours 1,5,...,21 at :42 - YRA holds the even hours on the shared second key; eBay keeps the even hours (:07)
   workflow_dispatch:
     inputs:
       recategorize:
