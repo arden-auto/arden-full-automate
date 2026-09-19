@@ -9,3 +9,7 @@ README.md
 CLAUDE.md
 *.pdf
 *.docx
+absolute-nexus-*.json
+.claude/settings.local.json
+.claude/launch.json
+livelog.txt
