@@ -1,0 +1,44 @@
+name: Bulk Remove Rows (Sheet + Supabase)
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List matches without deleting (yes/no)"
+        default: "yes"
+      skus:
+        description: "Comma-separated SKUs (optional if list_file given)"
+        required: false
+        default: ""
+      list_file:
+        description: "Repo path of a one-SKU-per-line list file"
+        required: false
+        default: ""
+
+# No OnBuy calls, but it DELETES Sheet rows - joining the onbuy-api group
+# means it can never shift row numbers under a sync that is mid-run
+# writing to the same sheet.
+concurrency:
+  group: onbuy-api
+  cancel-in-progress: false
+
+jobs:
+  remove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Remove rows
+        env:
+          DRY_RUN: ${{ inputs.dry_run == 'no' && '0' || '1' }}
+          REMOVE_SKUS: ${{ inputs.skus }}
+          REMOVE_SKUS_FILE: ${{ inputs.list_file }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python bulk_remove_rows.py

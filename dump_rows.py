@@ -25,7 +25,7 @@ ROWS = (os.getenv("ROWS") or "").strip()
 # for its ASIN and cross-checked against the ASIN column - a mismatch means
 # the row's Keepa data was written from some OTHER row's product.
 SHOW = ["SKU", "Supplier URL", "ASIN", "Amazon Seller", "Amazon Availability",
-        "Keepa Updated", "Sync Status", "OnBuy Product Created", "Title"]
+        "Keepa Updated", "Sync Status", "OnBuy Product Created", "Title", "Brand"]
 
 
 def ranges(nums):

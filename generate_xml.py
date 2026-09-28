@@ -126,6 +126,24 @@ ONBUY_MAX_PUSHES_PER_RUN = int(os.getenv("ONBUY_MAX_PUSHES_PER_RUN") or "200")
 ONBUY_CREATE_ENABLED = (os.getenv("ONBUY_CREATE_ENABLED") or "true").strip().lower() != "false"
 
 
+def _load_restricted_brands():
+    """restricted_brands.txt (repo root, one brand per line, # comments):
+    brands this store must never list (user policy 2026-09-28). Rows whose
+    effective brand matches freeze with a Failed status and never push."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "restricted_brands.txt")
+    out = set()
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.split("#", 1)[0].strip()
+                if line:
+                    out.add(line.lower())
+    return out
+
+
+RESTRICTED_BRANDS = _load_restricted_brands()
+
+
 def _load_protected_skus():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "protected_skus.txt")
     skus = set()
@@ -1944,6 +1962,13 @@ def main():
         # - the create path detects it and updates the existing listing.
         if not amazon_flag and sku and all_sku_counts.get(sku, 0) > 1:
             amazon_flag = f"Failed: SKU appears on {all_sku_counts[sku]} sheet rows - one product per SKU"
+            logger.warning("Row %d (SKU %s): %s", i, sku, amazon_flag)
+        # Restricted brands (user policy 2026-09-28): these brands must
+        # never be listed on this store - the row freezes until the team
+        # replaces or removes it. The effective brand is checked, so a
+        # blank cell with a restricted fetched brand freezes too.
+        if not amazon_flag and brand and str(brand).strip().lower() in RESTRICTED_BRANDS:
+            amazon_flag = f"Failed: brand '{brand}' is restricted (store policy) - remove or replace this row"
             logger.warning("Row %d (SKU %s): %s", i, sku, amazon_flag)
 
         # ============ SKU REGISTRY (2026-09-19, user directive) ============

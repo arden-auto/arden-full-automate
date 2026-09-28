@@ -1,0 +1,8 @@
+# Brands this store must never list (user policy 2026-09-28).
+# One brand per line, matched case-insensitively against the row's
+# effective brand (cell or fetched). Rows freeze with a Failed status.
+Belkin
+Pioneer
+Olympus
+Tower
+DJI
