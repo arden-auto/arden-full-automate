@@ -27,7 +27,8 @@ from oauth2client.service_account import ServiceAccountCredentials  # noqa: E402
 import fees  # noqa: E402
 import pricing  # noqa: E402
 import sheet_tabs  # noqa: E402
-from generate_xml import _formula_priced  # noqa: E402  - the sync's own "did the automation set this price?" test
+from generate_xml import (_fee_cell_auto_values, _formula_priced, _misread_fee_priced,  # noqa: E402  - the sync's own tests
+                          resolve_pct_cell)
 
 SHEET_NAME = os.getenv("SHEET_NAME") or "Arden_Full_Feed_Master"
 FROM_PCT = float(os.getenv("FROM_PCT") or "20")
@@ -106,19 +107,15 @@ def main():
                 override += 1                      # a per-row Profit % override: never touched
                 continue
             rule = fees.rule_for_category_path(r.get("Category")) if fees.enabled() else None
-            # Read the Fee % cell the way the sync does (resolve_pct_cell): the mirror holds WHOLE numbers, so the
-            # 2-decimal effective fee the automation shows (nominal + 1.5, e.g. 16.50) never matches it and is taken
-            # for a manual override - which then drives the formula as a flat fee (+ the uplift a second time).
-            nominal = [rule.lower_pct, rule.upper_pct] if rule is not None else [float(pricing.PLATFORM_FEE_PERCENT)]
+            # Read the Fee % cell the way the sync does (resolve_pct_cell + the values the automation itself shows);
+            # no mirror here, so a tiered blend written at an older price may read as an override in this estimate.
+            have = to_f(r.get("Selling Price (£)")) or 0.0
+            fee_override = resolve_pct_cell(r.get("Fee %"), _fee_cell_auto_values(rule, have), None)
             typed_fee = to_f(r.get("Fee %"))
-            fee_override = None
-            if typed_fee and not any(v is not None and abs(typed_fee - v) < 0.05 for v in nominal + [float(round(typed_fee))]):
-                fee_override = typed_fee
             kw = ({"platform_fee_percent": fee_override} if fee_override is not None
                   else {"rule": rule} if rule is not None else {"platform_fee_percent": pricing.PLATFORM_FEE_PERCENT})
             p_from, p_to = pricing.price_for_profit(total, FROM_PCT, **kw), pricing.price_for_profit(total, TO_PCT, **kw)
             n_fee_override += fee_override is not None
-            have = to_f(r.get("Selling Price (£)")) or 0.0
             live_in_stock = r.get("OnBuy Product Created", "").upper() == "TRUE" and (to_f(r.get("Stock")) or 0) > 0
             if is_amazon:
                 kind = "re-derived" if have > 0 else "unpriced"
@@ -127,7 +124,9 @@ def main():
                 kind, new = "unpriced", p_to
             elif abs(have - p_to) < 0.011:
                 kind, new = "already at the new price", have
-            elif _formula_priced(have, cost, ship, rule, None, fee_override) and 0 < p_to < have:
+            elif ((_formula_priced(have, cost, ship, rule, None, fee_override)
+                   or (fee_override is None and typed_fee and _misread_fee_priced(have, cost, ship, typed_fee)))
+                  and 0 < p_to < have):
                 # the sync lowers a price the automation set itself (flat-20 / category / any superseded schedule)
                 kind, new = "lowered", p_to
             elif have >= p_to:

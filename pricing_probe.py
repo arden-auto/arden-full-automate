@@ -1,14 +1,16 @@
-"""READ-ONLY (2026-10-02): how does the sync read each row's Fee % / Profit % cells?
+"""READ-ONLY (2026-10-02): how will the sync price each row? Runs the sync's REAL decision
+(generate_xml.decide_price) over the sheet's cells and the Supabase mirror, without running the sync.
 
-For the rows in ROWS (TAB = worksheet, default the first product tab) prints the two
-cells as typed, what the Supabase mirror last stored, what resolve_pct_cell makes of
-them (None = "the automation's own", a number = "a manual override that drives the
-formula"), the category commission it expects, and the prices the formula gives with and
-without that reading. No cost or shipping is printed (public logs); prices only.
-Writes nothing.
+ROWS = row numbers / ranges ("6294,6298" or "10-20") for per-row detail, or `all` for whole-tab
+aggregates: how many Fee % / Profit % cells still read as manual overrides, how many prices the
+sync would move (down / up, by how much) and why. TAB = worksheet (default the first product tab).
+
+Prints prices and percentages only - never a cost (the repositories, and so their run logs, are
+public). Writes nothing anywhere.
 """
 import json
 import os
+import statistics
 
 os.environ.setdefault("FEE_MODE", "category")
 
@@ -19,11 +21,12 @@ import fees  # noqa: E402
 import pricing  # noqa: E402
 import sheet_tabs  # noqa: E402
 import supabase_db  # noqa: E402
-from generate_xml import _to_float, resolve_pct_cell  # noqa: E402
+from generate_xml import _shipping_value, _to_float, decide_price  # noqa: E402
 
 SHEET_NAME = os.getenv("SHEET_NAME") or "Arden_Full_Feed_Master"
 TAB = (os.getenv("SHEET_TAB") or "").strip()
 ROWS = (os.getenv("ROWS") or "").strip()
+CHUNK = 150
 
 
 def parse_rows(spec):
@@ -38,42 +41,23 @@ def parse_rows(spec):
     return out
 
 
-def summarise(values, ix):
-    """Whole-tab count (no per-row output, no mirror needed): the mirror stores whole numbers, so a Fee %
-    cell the automation wrote as nominal+1.5 (e.g. 16.50) can never match it - count those, and the price
-    effect of reading them as an override (fee = shown value + the uplift again)."""
-    def cell(r, k):
-        i = ix.get(k)
-        return str(r[i]).strip() if i is not None and i < len(r) else ""
-    n_priced = n_fee_cell = n_misread = 0
-    infl = []
-    for r in values[1:]:
-        cost, ship = _to_float(cell(r, "Cost Price (£)")), _to_float(cell(r, "Shipping Cost (£)"))
-        if cost <= 0:
-            continue
-        n_priced += 1
-        shown = cell(r, "Fee %")
-        typed = _to_float(shown) if shown else None
-        if not typed:
-            continue
-        n_fee_cell += 1
-        rule = fees.rule_for_category_path(cell(r, "Category"))
-        nominal = [rule.lower_pct, rule.upper_pct] if rule is not None else [float(pricing.PLATFORM_FEE_PERCENT)]
-        mirror_like = float(round(typed))            # what the mirror holds for it
-        if any(v is not None and abs(typed - v) < 0.05 for v in nominal + [mirror_like]):
-            continue
-        n_misread += 1
-        total = cost + ship
-        prof = pricing.profit_percent(total)
-        right = pricing.price_for_profit(total, prof, rule=rule)
-        wrong = pricing.price_for_profit(total, prof, platform_fee_percent=typed)
-        if right > 0:
-            infl.append((wrong / right - 1) * 100)
-    print(f"rows with a cost: {n_priced} | with a Fee % cell: {n_fee_cell} | cell read as a manual FEE override: {n_misread}")
-    if infl:
-        infl.sort()
-        print(f"price the formula gives under that reading vs the category rule: average +{sum(infl) / len(infl):.2f}%, "
-              f"median +{infl[len(infl) // 2]:.2f}%, p90 +{infl[int(len(infl) * 0.9)]:.2f}%, max +{infl[-1]:.2f}%")
+def pct(values, q):
+    values = sorted(values)
+    return values[min(len(values) - 1, int(len(values) * q))] if values else 0.0
+
+
+def decision(cells, mirror, amazon):
+    """The sync's decision for one row, from the sheet's cells (None when the row has no cost)."""
+    cost = _to_float(cells("Cost Price (£)"))
+    if cost <= 0:
+        return None
+    rule = fees.rule_for_category_path(cells("Category")) if fees.enabled() else None
+    existing = _to_float(cells("Selling Price (£)"))
+    d = decide_price(supplier="Amazon" if amazon else "eBay", cost_price=cost,
+                     shipping_cost=_shipping_value(cells("Shipping Cost (£)")), fee_rule=rule,
+                     existing_price=existing, fee_cell=cells("Fee %"), profit_cell=cells("Profit %"), prev=mirror)
+    d["rule"], d["existing"] = rule, existing
+    return d
 
 
 def main():
@@ -82,41 +66,75 @@ def main():
         ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"])
     book = gspread.authorize(creds).open(SHEET_NAME)
     ws = book.worksheet(TAB) if TAB else sheet_tabs.product_sheet(book)
+    amazon = ws.title == sheet_tabs.AMAZON_TAB
     values = ws.get_all_values()
     header = [str(h).strip() for h in values[0]]
     ix = {h: i for i, h in enumerate(header) if h}
+    print(f"tab {ws.title!r} ({'Amazon' if amazon else 'eBay'} pricing) | top band profit now {pricing.TOP_BAND_PROFIT:g}% "
+          f"| uplift {pricing.FEE_UPLIFT_PERCENT:g} points | fee mode {'category' if fees.enabled() else 'flat'}"
+          if hasattr(pricing, "TOP_BAND_PROFIT") else
+          f"tab {ws.title!r} ({'Amazon' if amazon else 'eBay'} pricing) | uplift {pricing.FEE_UPLIFT_PERCENT:g} points "
+          f"| fee mode {'category' if fees.enabled() else 'flat'}")
 
-    def cell(r, k):
-        i = ix.get(k)
-        return str(r[i]).strip() if i is not None and i < len(r) else ""
-    print(f"tab {ws.title!r} | top band profit now {pricing.TOP_BAND_PROFIT:g}% | uplift {pricing.FEE_UPLIFT_PERCENT:g} points")
+    def cells_of(r):
+        return lambda k: (str(r[ix[k]]).strip() if k in ix and ix[k] < len(r) else "")
+
     if ROWS.lower() == "all":
-        summarise(values, ix)
+        sku_rows = [(n, r) for n, r in enumerate(values[1:], start=2) if cells_of(r)("SKU")]
+        mirror = {}
+        skus = [cells_of(r)("SKU") for _, r in sku_rows]
+        for i in range(0, len(skus), CHUNK):
+            try:
+                mirror.update(supabase_db.fetch_existing_fields(skus[i:i + CHUNK]))
+            except Exception as exc:  # noqa: BLE001 - the preview still works without the mirror, just less exactly
+                print(f"mirror read failed for a chunk ({str(exc)[:100]}) - those rows are previewed without it")
+        how, misread, fee_ovr, profit_ovr, down, up, human = {}, 0, 0, 0, [], [], 0
+        priced = 0
+        for n, r in sku_rows:
+            c = cells_of(r)
+            d = decision(c, mirror.get(c("SKU"), {}), amazon)
+            if d is None:
+                continue
+            priced += 1
+            how[d["how"]] = how.get(d["how"], 0) + 1
+            misread += bool(d["misread"])
+            fee_ovr += d["fee_override"] is not None
+            profit_ovr += d["profit_override"] is not None
+            if d["existing"] > 0:
+                change = (d["selling_price"] / d["existing"] - 1) * 100
+                if change < -0.05:
+                    down.append(change)
+                elif change > 0.05:
+                    up.append(change)
+                if d["how"] == "kept" and d["existing"] > d["formula_price"] + 0.011:
+                    human += 1
+        print(f"rows with a cost: {priced} | decisions {how} | prices set under the Fee % misread: {misread}")
+        print(f"cells that still read as a MANUAL override: Fee % {fee_ovr}, Profit % {profit_ovr}")
+        print(f"prices kept ABOVE the formula (taken as set by a person): {human}")
+        if down:
+            print(f"prices that move DOWN: {len(down)} | mean {statistics.mean(down):.2f}%, median {statistics.median(down):.2f}%, "
+                  f"p10 {pct(down, 0.1):.2f}%, min {min(down):.2f}%")
+        if up:
+            print(f"prices that move UP: {len(up)} | mean +{statistics.mean(up):.2f}%, median +{statistics.median(up):.2f}%, "
+                  f"p90 +{pct(up, 0.9):.2f}%, max +{max(up):.2f}%")
         return
+
     for n in parse_rows(ROWS):
         if n - 1 >= len(values):
             continue
         r = values[n - 1]
-        sku = cell(r, "SKU")
+        c = cells_of(r)
+        sku = c("SKU")
         mirror = supabase_db.fetch_existing_fields([sku]).get(sku, {}) if sku else {}
-        cost, ship = _to_float(cell(r, "Cost Price (£)")), _to_float(cell(r, "Shipping Cost (£)"))
-        total = cost + ship
-        rule = fees.rule_for_category_path(cell(r, "Category"))
-        band_now = pricing.profit_percent(total) if cost > 0 else None
-        prev_total = _to_float(mirror.get("Cost Price (£)")) + _to_float(mirror.get("Shipping Cost (£)"))
-        band_prev = pricing.profit_percent(prev_total) if prev_total > 0 else None
-        p_cell, f_cell = cell(r, "Profit %"), cell(r, "Fee %")
-        p_ovr = resolve_pct_cell(p_cell, [band_now, band_prev], mirror.get("Profit %"), hi=500)
-        fee_auto = [rule.lower_pct, rule.upper_pct] if rule is not None else [float(pricing.PLATFORM_FEE_PERCENT)]
-        f_ovr = resolve_pct_cell(f_cell, fee_auto, mirror.get("Fee %"))
-        used = p_ovr if p_ovr is not None else (band_now or 0)
-        by_rule = pricing.price_for_profit(total, used, rule=rule) if cost > 0 else 0
-        by_flat = pricing.price_for_profit(total, used, platform_fee_percent=f_ovr) if (cost > 0 and f_ovr is not None) else None
-        print(f"row {n} SKU {sku}: cells Fee % {f_cell!r} Profit % {p_cell!r} | mirror Fee % {mirror.get('Fee %')!r} "
-              f"Profit % {mirror.get('Profit %')!r} | rule {rule!r} (auto fee values {fee_auto}) | "
-              f"read as: profit override {p_ovr}, FEE override {f_ovr} | price cell {cell(r, 'Selling Price (£)')} | "
-              f"formula at {used:g}% by the category rule {by_rule:.2f}"
-              + (f", by the FEE-OVERRIDE reading {by_flat:.2f}" if by_flat is not None else ""))
+        d = decision(c, mirror, amazon)
+        if d is None:
+            print(f"row {n} SKU {sku}: no cost - nothing to price")
+            continue
+        print(f"row {n} SKU {sku}: cells Fee % {c('Fee %')!r} Profit % {c('Profit %')!r} | mirror Fee % {mirror.get('Fee %')!r} "
+              f"Profit % {mirror.get('Profit %')!r} | rule {d['rule']!r} | read as: fee override {d['fee_override']}, "
+              f"profit override {d['profit_override']} | decision {d['how']}"
+              f"{' (price set under the Fee % misread)' if d['misread'] else ''} | price now {d['existing']:.2f} -> "
+              f"{d['selling_price']:.2f} (formula {d['formula_price']:.2f})")
 
 
 if __name__ == "__main__":
