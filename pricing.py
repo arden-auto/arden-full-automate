@@ -54,13 +54,33 @@ MIN_PROFIT_PERCENT = 20
 # for rows without a category tier and for stores not yet in category mode.
 PLATFORM_FEE_PERCENT = 20  # OnBuy commission - charged on the SELLING price
 
+# The standing profit for the top band (cost + shipping above GBP 50).
+STANDARD_TOP_BAND_PROFIT = 20.0
+
+
+def _top_band_profit():
+    """The top band's profit %. PROFIT_ABOVE_50_PERCENT (a workflow env, unset =
+    the standing 20) moves it for a limited time WITHOUT a code change (user
+    2026-10-02: 15% for some days, reverted on command): set the value back to
+    20 or delete the env line to restore the schedule. A typo or an absurd
+    value falls back to the standing 20 rather than breaking every run."""
+    raw = (os.getenv("PROFIT_ABOVE_50_PERCENT") or "").strip()
+    try:
+        value = float(raw) if raw else STANDARD_TOP_BAND_PROFIT
+    except ValueError:
+        return STANDARD_TOP_BAND_PROFIT
+    return value if 0 <= value <= 100 else STANDARD_TOP_BAND_PROFIT
+
+
+TOP_BAND_PROFIT = _top_band_profit()
+
 # (upper cost bound inclusive, PROFIT %) - checked in order; None = no
 # bound. Each line traces to the policy decision that set it.
 PROFIT_BANDS = (
     (5.0, 100),    # under GBP 5 (80% -> 100%, 2026-09-11)
     (10.0, 80),    # GBP 5-10 inclusive (2026-09-11 schedule)
     (50.0, 40),    # over GBP 10 up to 50 inclusive (2026-09-11 schedule)
-    (None, 20),    # above GBP 50 (40%/25% -> 20%, 2026-09-11)
+    (None, TOP_BAND_PROFIT),    # above GBP 50: 20% standing (40%/25% -> 20%, 2026-09-11)
 )
 
 
@@ -92,6 +112,12 @@ _SUPERSEDED_PROFIT_BANDS = (
     # 2026-09-11 am: the above-GBP-100 profit cut to 25%, superseded the
     # same day by the full range rewrite
     ((5.0, 80), (10.0, 80), (30.0, 40), (100.0, 40), (None, 25)),
+) + (
+    # While the top band is temporarily moved (TOP_BAND_PROFIT != 20) the standing
+    # schedule counts as superseded too, so a price the automation set at 20% still
+    # follows the formula DOWN; on revert the lower prices rise through max().
+    () if TOP_BAND_PROFIT == STANDARD_TOP_BAND_PROFIT else
+    (((5.0, 100), (10.0, 80), (50.0, 40), (None, STANDARD_TOP_BAND_PROFIT)),)
 )
 
 

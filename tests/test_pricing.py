@@ -99,3 +99,72 @@ def test_absurd_fee_is_clamped_not_divided_by_zero():
 def test_zero_and_negative_cost():
     assert pricing.calculate_selling_price(0) == 0.0
     assert pricing.calculate_selling_price(-5) == 0.0
+
+
+# ---- the temporary top-band override (user 2026-10-02: 15% for some days, reverted on command) ----
+import ast  # noqa: E402
+import importlib  # noqa: E402
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture
+def top_band(monkeypatch):
+    """Reload pricing with PROFIT_ABOVE_50_PERCENT set (None = unset) and restore the standing schedule after."""
+    def _set(value):
+        if value is None:
+            monkeypatch.delenv("PROFIT_ABOVE_50_PERCENT", raising=False)
+        else:
+            monkeypatch.setenv("PROFIT_ABOVE_50_PERCENT", value)
+        return importlib.reload(pricing)
+    yield _set
+    monkeypatch.delenv("PROFIT_ABOVE_50_PERCENT", raising=False)
+    importlib.reload(pricing)
+
+
+def _formula_priced():
+    src = Path(__file__).resolve().parents[1] / "generate_xml.py"
+    fn = next(n for n in ast.parse(src.read_text(encoding="utf-8")).body
+              if isinstance(n, ast.FunctionDef) and n.name == "_formula_priced")
+    ns = {"pricing": pricing}
+    exec(compile(ast.Module(body=[fn], type_ignores=[]), str(src), "exec"), ns)
+    return ns["_formula_priced"]
+
+
+def test_unset_env_keeps_the_standing_20(top_band):
+    p = top_band(None)
+    assert p.TOP_BAND_PROFIT == 20 and p.profit_percent(60.0) == 20
+    assert p.legacy_profit_percents(60.0) == [40]            # nothing extra recognised
+
+
+def test_fifteen_moves_only_the_band_above_50(top_band):
+    p = top_band("15")
+    assert p.profit_percent(50.01) == 15 and p.profit_percent(999.0) == 15
+    assert p.profit_percent(50.00) == 40                      # exactly 50 stays in the 40% range
+    for cost, expected in ((4.99, 100), (5.0, 80), (10.0, 80), (10.01, 40), (30.0, 40)):
+        assert p.profit_percent(cost) == expected
+
+
+def test_fifteen_price_is_the_lower_formula_price(top_band):
+    p = top_band("15")
+    assert abs(p.calculate_selling_price(60.0) - 87.90) < 0.01    # 60 x 1.15 / 0.785 (was 91.72 at 20%)
+    assert p.calculate_selling_price(30.0) == pytest.approx(53.50, abs=0.01)  # 40% range untouched: 30 x 1.4 / 0.785
+
+
+def test_prices_set_at_20_stay_recognisable_so_they_follow_down_and_come_back_up(top_band):
+    cost, ship = 80.0, 0.0
+    p = top_band(None)
+    price20 = p.calculate_selling_price(cost, ship)
+    p = top_band("15")
+    assert 20.0 in p.legacy_profit_percents(cost)
+    assert _formula_priced()(price20, cost, ship, None) is True          # the sync lowers a price it set at 20%
+    price15 = p.calculate_selling_price(cost, ship)
+    assert price15 < price20
+    p = top_band(None)                                                    # reverted: the 15% price is below the formula,
+    assert p.calculate_selling_price(cost, ship) == price20               # so max(existing, formula) raises it back
+
+
+@pytest.mark.parametrize("bad", ["garbage", "150", "-3", " ", "nan"])
+def test_a_bad_value_falls_back_to_the_standing_20_instead_of_breaking_the_run(top_band, bad):
+    assert top_band(bad).TOP_BAND_PROFIT == 20
+
