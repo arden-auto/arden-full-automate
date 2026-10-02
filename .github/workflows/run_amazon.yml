@@ -81,6 +81,9 @@ jobs:
           EBAY_DAILY_CALL_BUDGET: ${{ vars.EBAY_DAILY_CALL_BUDGET }}
           FEE_MODE: ${{ vars.FEE_MODE }}
           FEE_TIER_MODE: ${{ vars.FEE_TIER_MODE }}
+          # eBay's delivery fee in the cost base and the Shipping Cost (£) cell (user 2026-10-02): '1' = on, 'shadow' =
+          # measure and log only (nothing written or repriced), '0' = off. A repo variable of the same name overrides.
+          EBAY_SHIPPING_COST: ${{ vars.EBAY_SHIPPING_COST || 'shadow' }}
           # TEMPORARY (user 2026-10-02): profit on cost + shipping ABOVE GBP 50 is 15% instead of the standing 20%
           # until told otherwise. To REVERT: change '15' to '20' (or delete the next line); a repo variable of the
           # same name overrides this default. Both sync workflows must carry the SAME value (no flip-flopping).
