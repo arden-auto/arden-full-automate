@@ -4,9 +4,11 @@ GBP 50, today 20%) to 15% touches on this store.
 For every priced row in that band it prices the row at 20% and at 15% (the
 category's real commission when FEE_MODE=category) and says what the sync does
 with the sheet's Selling Price cell:
-  - the cell holds the 20% formula price (the automation set it)  -> LOWERED to the 15% price
-  - the cell holds a price ABOVE the 20% formula (a person set it) -> KEPT (never-lower rule)
-  - the cell holds a price below the 20% formula                   -> raised to the 15% price if lower
+  - the cell holds a price the automation set (the sync's own test: flat-20, category tier or
+    any superseded schedule)                                        -> LOWERED to the 15% price
+  - the cell holds a price above the formula that no schedule explains
+    (a person set it)                                               -> KEPT (never-lower rule)
+  - the cell holds a price below the new formula                    -> raised to the new price
   - a typed Profit % that is neither 20 nor 15 is a per-row override -> untouched
 The Amazon tab is re-derived from cost in both directions, so every priced row there moves.
 
@@ -25,6 +27,7 @@ from oauth2client.service_account import ServiceAccountCredentials  # noqa: E402
 import fees  # noqa: E402
 import pricing  # noqa: E402
 import sheet_tabs  # noqa: E402
+from generate_xml import _formula_priced  # noqa: E402  - the sync's own "did the automation set this price?" test
 
 SHEET_NAME = os.getenv("SHEET_NAME") or "Arden_Full_Feed_Master"
 FROM_PCT = float(os.getenv("FROM_PCT") or "20")
@@ -112,12 +115,15 @@ def main():
                 new = p_to
             elif have <= 0:
                 kind, new = "unpriced", p_to
-            elif abs(have - p_from) < 0.011 or abs(have - p_to) < 0.011:
-                kind, new = ("lowered" if abs(have - p_from) < 0.011 else "already at the new price"), p_to
-            elif have > p_from:
+            elif abs(have - p_to) < 0.011:
+                kind, new = "already at the new price", have
+            elif _formula_priced(have, cost, ship, rule) and 0 < p_to < have:
+                # the sync lowers a price the automation set itself (flat-20 / category / any superseded schedule)
+                kind, new = "lowered", p_to
+            elif have >= p_to:
                 kind, new = "kept (price above the formula - set by a person)", have
             else:
-                kind, new = "raised to the new price", max(have, p_to)
+                kind, new = "raised to the new price", p_to
             band.append({"row": r["row"], "kind": kind, "have": have, "new": new, "live": live_in_stock,
                          "total": total})
         movers = [b for b in band if b["kind"] in ("lowered", "re-derived") and b["have"] > 0 and b["new"] < b["have"] - 0.005]
