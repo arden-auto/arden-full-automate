@@ -1,0 +1,36 @@
+name: Profit Band Impact (read-only)
+
+# Sheet-only, prints aggregates (no per-product cost or price - the logs are
+# public). Outside the onbuy-api group - safe alongside any run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_pct:
+        description: "Current profit % of the top band (cost + shipping above GBP 50)"
+        required: false
+        default: "20"
+      to_pct:
+        description: "Proposed profit %"
+        required: false
+        default: "15"
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Impact
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          FEE_MODE: ${{ vars.FEE_MODE }}
+          FEE_TIER_MODE: ${{ vars.FEE_TIER_MODE }}
+          FROM_PCT: ${{ inputs.from_pct }}
+          TO_PCT: ${{ inputs.to_pct }}
+        run: python profit_band_impact.py
