@@ -38,6 +38,44 @@ def parse_rows(spec):
     return out
 
 
+def summarise(values, ix):
+    """Whole-tab count (no per-row output, no mirror needed): the mirror stores whole numbers, so a Fee %
+    cell the automation wrote as nominal+1.5 (e.g. 16.50) can never match it - count those, and the price
+    effect of reading them as an override (fee = shown value + the uplift again)."""
+    def cell(r, k):
+        i = ix.get(k)
+        return str(r[i]).strip() if i is not None and i < len(r) else ""
+    n_priced = n_fee_cell = n_misread = 0
+    infl = []
+    for r in values[1:]:
+        cost, ship = _to_float(cell(r, "Cost Price (£)")), _to_float(cell(r, "Shipping Cost (£)"))
+        if cost <= 0:
+            continue
+        n_priced += 1
+        shown = cell(r, "Fee %")
+        typed = _to_float(shown) if shown else None
+        if not typed:
+            continue
+        n_fee_cell += 1
+        rule = fees.rule_for_category_path(cell(r, "Category"))
+        nominal = [rule.lower_pct, rule.upper_pct] if rule is not None else [float(pricing.PLATFORM_FEE_PERCENT)]
+        mirror_like = float(round(typed))            # what the mirror holds for it
+        if any(v is not None and abs(typed - v) < 0.05 for v in nominal + [mirror_like]):
+            continue
+        n_misread += 1
+        total = cost + ship
+        prof = pricing.profit_percent(total)
+        right = pricing.price_for_profit(total, prof, rule=rule)
+        wrong = pricing.price_for_profit(total, prof, platform_fee_percent=typed)
+        if right > 0:
+            infl.append((wrong / right - 1) * 100)
+    print(f"rows with a cost: {n_priced} | with a Fee % cell: {n_fee_cell} | cell read as a manual FEE override: {n_misread}")
+    if infl:
+        infl.sort()
+        print(f"price the formula gives under that reading vs the category rule: average +{sum(infl) / len(infl):.2f}%, "
+              f"median +{infl[len(infl) // 2]:.2f}%, p90 +{infl[int(len(infl) * 0.9)]:.2f}%, max +{infl[-1]:.2f}%")
+
+
 def main():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
         json.loads(os.environ["GOOGLE_CREDENTIALS"]),
@@ -52,6 +90,9 @@ def main():
         i = ix.get(k)
         return str(r[i]).strip() if i is not None and i < len(r) else ""
     print(f"tab {ws.title!r} | top band profit now {pricing.TOP_BAND_PROFIT:g}% | uplift {pricing.FEE_UPLIFT_PERCENT:g} points")
+    if ROWS.lower() == "all":
+        summarise(values, ix)
+        return
     for n in parse_rows(ROWS):
         if n - 1 >= len(values):
             continue

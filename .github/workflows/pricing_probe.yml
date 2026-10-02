@@ -11,7 +11,7 @@ on:
         required: false
         default: ""
       rows:
-        description: "Sheet rows, e.g. 6294,6298 or 10-20"
+        description: "Sheet rows, e.g. 6294,6298 or 10-20 - or: all (whole-tab count of Fee % cells read as overrides)"
         required: true
 
 jobs:
