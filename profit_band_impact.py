@@ -33,7 +33,7 @@ SHEET_NAME = os.getenv("SHEET_NAME") or "Arden_Full_Feed_Master"
 FROM_PCT = float(os.getenv("FROM_PCT") or "20")
 TO_PCT = float(os.getenv("TO_PCT") or "15")
 NEEDED = ("SKU", "Stock", "Status", "Sync Status", "OnBuy Product Created", "Selling Price (£)",
-          "Cost Price (£)", "Shipping Cost (£)", "Category", "Profit %")
+          "Cost Price (£)", "Shipping Cost (£)", "Category", "Profit %", "Fee %")
 
 
 def col_letter(n):
@@ -92,7 +92,7 @@ def main():
     for ws in tabs:
         rows = read_tab(ws)
         is_amazon = ws.title == sheet_tabs.AMAZON_TAB
-        band, no_cost, override = [], 0, 0
+        band, no_cost, override, n_fee_override = [], 0, 0, 0
         for r in rows:
             cost, ship = to_f(r.get("Cost Price (£)")), to_f(r.get("Shipping Cost (£)")) or 0.0
             if not cost or cost <= 0:
@@ -106,8 +106,18 @@ def main():
                 override += 1                      # a per-row Profit % override: never touched
                 continue
             rule = fees.rule_for_category_path(r.get("Category")) if fees.enabled() else None
-            kw = {"rule": rule} if rule is not None else {"platform_fee_percent": pricing.PLATFORM_FEE_PERCENT}
+            # Read the Fee % cell the way the sync does (resolve_pct_cell): the mirror holds WHOLE numbers, so the
+            # 2-decimal effective fee the automation shows (nominal + 1.5, e.g. 16.50) never matches it and is taken
+            # for a manual override - which then drives the formula as a flat fee (+ the uplift a second time).
+            nominal = [rule.lower_pct, rule.upper_pct] if rule is not None else [float(pricing.PLATFORM_FEE_PERCENT)]
+            typed_fee = to_f(r.get("Fee %"))
+            fee_override = None
+            if typed_fee and not any(v is not None and abs(typed_fee - v) < 0.05 for v in nominal + [float(round(typed_fee))]):
+                fee_override = typed_fee
+            kw = ({"platform_fee_percent": fee_override} if fee_override is not None
+                  else {"rule": rule} if rule is not None else {"platform_fee_percent": pricing.PLATFORM_FEE_PERCENT})
             p_from, p_to = pricing.price_for_profit(total, FROM_PCT, **kw), pricing.price_for_profit(total, TO_PCT, **kw)
+            n_fee_override += fee_override is not None
             have = to_f(r.get("Selling Price (£)")) or 0.0
             live_in_stock = r.get("OnBuy Product Created", "").upper() == "TRUE" and (to_f(r.get("Stock")) or 0) > 0
             if is_amazon:
@@ -117,7 +127,7 @@ def main():
                 kind, new = "unpriced", p_to
             elif abs(have - p_to) < 0.011:
                 kind, new = "already at the new price", have
-            elif _formula_priced(have, cost, ship, rule) and 0 < p_to < have:
+            elif _formula_priced(have, cost, ship, rule, None, fee_override) and 0 < p_to < have:
                 # the sync lowers a price the automation set itself (flat-20 / category / any superseded schedule)
                 kind, new = "lowered", p_to
             elif have >= p_to:
@@ -129,7 +139,7 @@ def main():
         movers = [b for b in band if b["kind"] in ("lowered", "re-derived") and b["have"] > 0 and b["new"] < b["have"] - 0.005]
         print(f"\n=== tab {ws.title!r}: {len(rows)} rows with a SKU, {no_cost} without a cost")
         print(f"rows with cost + shipping above GBP 50 (the band): {len(band) + override} "
-              f"(per-row Profit % override, untouched: {override})")
+              f"(per-row Profit % override, untouched: {override}; Fee % cell read as a fee override: {n_fee_override})")
         kinds = {}
         for b in band:
             kinds[b["kind"]] = kinds.get(b["kind"], 0) + 1
