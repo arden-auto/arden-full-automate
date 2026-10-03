@@ -5,7 +5,11 @@ listings. SAFETY: runs ONLY on an explicitly supplied SKU list (no
 default, no scan) and DRY_RUN is on unless dispatched with dry_run=no.
 For recreate flows, run reset_deleted_rows on the same SKUs AFTER the
 deletion - deletion alone leaves the rows update-only (Synced+OPC), and
-resetting before deletion would re-attach creates to the old products."""
+resetting before deletion would re-attach creates to the old products.
+
+ONE SKU PER REQUEST, and OnBuy allows 240 DELETE requests an hour (a "not found" SKU costs one too):
+for more than a few dozen SKUs use delete_listings_batch.py / delete_skus_batch.yml (up to 100 SKUs
+per request) or bulk_delete_fast.yml (plan + batched delete + verify)."""
 import logging
 import os
 import time

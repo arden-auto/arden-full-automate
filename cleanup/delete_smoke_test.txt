@@ -1,0 +1,4 @@
+# Three SKUs that cannot exist: a live batched delete of them deletes nothing and proves the endpoint's answers.
+ZZ-DELETE-SMOKE-TEST-1
+ZZ-DELETE-SMOKE-TEST-2
+ZZ-DELETE-SMOKE-TEST-3
