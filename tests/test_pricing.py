@@ -81,9 +81,10 @@ def test_legacy_profit_percents_expose_only_changed_ranges():
     # The 2026-09-11 rewrite: GBP 50-100 dropped 40 -> 20, above 100
     # 30/25 -> 20, under 5 rose to 100. Old DOWNWARD values must stay
     # recognisable so existing prices reprice down.
-    assert pricing.legacy_profit_percents(150.0) == [30, 25]
-    assert pricing.legacy_profit_percents(60.0) == [40]
-    assert pricing.legacy_profit_percents(100.0) == [40]
+    # (the top band also lists the temporary 15% of 2026-10-02: whichever of 20 / 15 is live, the other is superseded)
+    assert pricing.legacy_profit_percents(150.0) == [30, 25, 15]
+    assert pricing.legacy_profit_percents(60.0) == [40, 15]
+    assert pricing.legacy_profit_percents(100.0) == [40, 15]
     assert pricing.legacy_profit_percents(3.0) == [80]
     # Ranges that kept their value offer no legacy - and never the current one.
     assert pricing.legacy_profit_percents(7.5) == []
@@ -134,7 +135,9 @@ def _formula_priced():
 def test_unset_env_keeps_the_standing_20(top_band):
     p = top_band(None)
     assert p.TOP_BAND_PROFIT == 20 and p.profit_percent(60.0) == 20
-    assert p.legacy_profit_percents(60.0) == [40]            # nothing extra recognised
+    # the old 40% schedule and the temporary 15% top band are both "superseded" - recognised, never the live value
+    assert p.legacy_profit_percents(60.0) == [40, 15]
+    assert p.legacy_profit_percents(30.0) == []              # below the top band nothing ever moved
 
 
 def test_fifteen_moves_only_the_band_above_50(top_band):
@@ -162,6 +165,16 @@ def test_prices_set_at_20_stay_recognisable_so_they_follow_down_and_come_back_up
     assert price15 < price20
     p = top_band(None)                                                    # reverted: the 15% price is below the formula,
     assert p.calculate_selling_price(cost, ship) == price20               # so max(existing, formula) raises it back
+
+
+def test_after_the_revert_a_price_set_at_15_is_still_recognised_and_rises_back(top_band):
+    cost, ship = 80.0, 0.0
+    p = top_band("15")
+    price15 = p.calculate_selling_price(cost, ship)
+    p = top_band(None)                                                    # reverted to the standing 20
+    assert 15.0 in p.legacy_profit_percents(cost)                          # so a Profit % cell of 15.00 is the automation's own
+    assert _formula_priced()(price15, cost, ship, None) is True
+    assert p.calculate_selling_price(cost, ship) > price15                # and max(existing, formula) raises it
 
 
 @pytest.mark.parametrize("bad", ["garbage", "150", "-3", " ", "nan"])

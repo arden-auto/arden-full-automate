@@ -56,6 +56,8 @@ PLATFORM_FEE_PERCENT = 20  # OnBuy commission - charged on the SELLING price
 
 # The standing profit for the top band (cost + shipping above GBP 50).
 STANDARD_TOP_BAND_PROFIT = 20.0
+# The value it was moved to for some days (user 2026-10-02).
+TEMPORARY_TOP_BAND_PROFIT = 15.0
 
 
 def _top_band_profit():
@@ -113,11 +115,12 @@ _SUPERSEDED_PROFIT_BANDS = (
     # same day by the full range rewrite
     ((5.0, 80), (10.0, 80), (30.0, 40), (100.0, 40), (None, 25)),
 ) + (
-    # While the top band is temporarily moved (TOP_BAND_PROFIT != 20) the standing
-    # schedule counts as superseded too, so a price the automation set at 20% still
-    # follows the formula DOWN; on revert the lower prices rise through max().
-    () if TOP_BAND_PROFIT == STANDARD_TOP_BAND_PROFIT else
-    (((5.0, 100), (10.0, 80), (50.0, 40), (None, STANDARD_TOP_BAND_PROFIT)),)
+    # The top band's two recent values - the standing 20 and the temporary 15 - are BOTH superseded whichever one
+    # is live (legacy_profit_percents drops the live one), so a price the automation set at the other still
+    # follows the formula DOWN, and a Profit % cell it wrote under the other is still its own: while the band is
+    # 15 the 20.00 cells, after the revert the 15.00 ones, must not turn into manual overrides.
+    ((5.0, 100), (10.0, 80), (50.0, 40), (None, STANDARD_TOP_BAND_PROFIT)),
+    ((5.0, 100), (10.0, 80), (50.0, 40), (None, TEMPORARY_TOP_BAND_PROFIT)),
 )
 
 
