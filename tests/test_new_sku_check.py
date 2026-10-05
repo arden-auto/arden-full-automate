@@ -48,3 +48,9 @@ def test_a_link_an_earlier_row_owns_and_a_link_without_an_id_are_reported():
     out = why(rows)
     assert "already owned by Sheet1 row 2" in out[("Sheet1", 3)][0]
     assert "no recognisable" in out[("Sheet1", 4)][0]
+
+
+def test_a_row_with_a_sku_but_no_link_yet_is_called_that():
+    row = r("Amazon", 2, GOOD, "")
+    row["url"] = ""
+    assert why([row])[("Amazon", 2)] == ["no supplier link yet"]

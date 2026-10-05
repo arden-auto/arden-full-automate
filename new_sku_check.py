@@ -9,7 +9,7 @@ product tab and the Amazon tab) and reports:
       * not a usable barcode (the digits are not a GS1-valid 8/12/13/14-digit code, or fall in the coupon range)
       * sharing their digits with another row (one barcode = one product), or the exact same SKU on two rows
       * on a supplier link that an earlier row already owns (the sync would freeze them as duplicates)
-      * on a link with no recognisable eBay item / ASIN
+      * with no supplier link yet, or a link with no recognisable eBay item / ASIN
 Counts and sample SKUs only (never a cost); the full list goes to OUT_DIR/new_sku_problems.csv for the team.
 Writes nothing to the sheet, Supabase or OnBuy.
 """
@@ -49,7 +49,9 @@ def classify(rows):
             problems.append((r, "same barcode digits as " + ", ".join(others)))
         if len(by_sku.get(r["sku"], [])) > 1:
             problems.append((r, "the exact same SKU is on more than one row"))
-        if not r["ident"]:
+        if not r["url"]:
+            problems.append((r, "no supplier link yet"))
+        elif not r["ident"]:
             problems.append((r, "supplier link has no recognisable eBay item or Amazon ASIN"))
         elif by_ident[r["ident"]][0] is not r:
             first = by_ident[r["ident"]][0]
