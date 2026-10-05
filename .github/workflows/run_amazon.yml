@@ -22,14 +22,82 @@ on:
         required: false
         default: ""
 
-# Same group as every other OnBuy-touching workflow: one token, one quota.
-concurrency:
-  group: onbuy-api
-  cancel-in-progress: false
+# THE LOCK IS TAKEN BY THE SYNC JOB ONLY (2026-10-05). Keepa answers at 20 tokens a minute, so fetching a full Amazon tab means
+# 30-90 minutes of waiting - that used to happen INSIDE the onbuy-api lock and held the eBay sync, the backfill and the oversell
+# guard behind it for up to two hours. The `prefetch` job now does the waiting with no lock and no OnBuy contact (generate_xml.py
+# with KEEPA_PREFETCH_ONLY=1: the same batch selection, the answers saved to a private Supabase bucket - keepa_cache.py); the
+# `sync` job takes the same onbuy-api group as every other OnBuy-touching workflow (one token, one quota) and reads the answers
+# back. If the prefetch fails the sync still runs and fetches live, exactly as before.
 
 jobs:
-  build:
+  prefetch:
     runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Prefetch Keepa answers (no lock, no OnBuy contact, no sheet writes)
+        env:
+          KEEPA_PREFETCH_ONLY: "1"
+          SHEET_TAB: Amazon
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          KEEPA_API_KEY: ${{ secrets.KEEPA_API_KEY }}
+          KEEPA_BUYBOX: ${{ vars.KEEPA_BUYBOX }}
+          KEEPA_UPDATE_HOURS: ${{ vars.KEEPA_UPDATE_HOURS }}
+          AMAZON_DEFAULT_STOCK: ${{ vars.AMAZON_DEFAULT_STOCK }}
+          # eBay credentials stay available for a mixed batch; an all-Amazon
+          # batch never requests an eBay token.
+          EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
+          EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
+          RECATEGORIZE_FROM_TYPE: ${{ inputs.recategorize == 'yes' && '1' || '' }}
+          ROWS_RANGE: ${{ inputs.rows }}
+          # Keepa costs 1 token per row (2,000 rows x 12 runs = 24,000 of the
+          # Starter plan's 28,800 a day), so the batch is a plain cap here,
+          # not the eBay budget maths.
+          MAX_PRODUCTS_PER_RUN: ${{ vars.AMAZON_MAX_PRODUCTS_PER_RUN || '300' }}
+          RUNS_PER_DAY: ${{ vars.RUNS_PER_DAY || '12' }}
+          EBAY_DAILY_CALL_BUDGET: ${{ vars.EBAY_DAILY_CALL_BUDGET }}
+          FEE_MODE: ${{ vars.FEE_MODE }}
+          FEE_TIER_MODE: ${{ vars.FEE_TIER_MODE }}
+          # eBay's delivery fee in the cost base and the Shipping Cost (£) cell (user 2026-10-02): '1' = on, 'shadow' =
+          # measure and log only (nothing written or repriced), '0' = off. A repo variable of the same name overrides.
+          EBAY_SHIPPING_COST: ${{ vars.EBAY_SHIPPING_COST || 'shadow' }}
+          # TEMPORARY (user 2026-10-02): profit on cost + shipping ABOVE GBP 50 is 15% instead of the standing 20%
+          # until told otherwise. To REVERT: change '15' to '20' (or delete the next line); a repo variable of the
+          # same name overrides this default. Both sync workflows must carry the SAME value (no flip-flopping).
+          PROFIT_ABOVE_50_PERCENT: ${{ vars.PROFIT_ABOVE_50_PERCENT || '15' }}
+          REFRESH_ALL: ${{ inputs.refresh_all }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_FEED_BUCKET: ${{ vars.SUPABASE_FEED_BUCKET }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          ALERT_EMAIL_FROM: ${{ vars.ALERT_EMAIL_FROM }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+        run: python generate_xml.py
+
+  sync:
+    needs: prefetch
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: onbuy-api
+      cancel-in-progress: false
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
 
@@ -49,6 +117,7 @@ jobs:
 
       - name: Run script
         env:
+          KEEPA_CACHE: "1"   # read the prefetch job's Keepa answers; fetch live only what is missing
           SHEET_TAB: Amazon
           FEED_FILE: feed_amazon.xml
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
