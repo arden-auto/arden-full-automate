@@ -1,0 +1,30 @@
+name: New SKU Check (read-only)
+
+# Reads the Google Sheet only (no OnBuy, no Supabase, no writes anywhere): are the SKUs just typed into rows that had a
+# supplier link but no SKU usable (valid barcode, no shared digits, no duplicate supplier link)? Outside the onbuy-api
+# group, so it is safe alongside any run. The full list comes back as an artifact.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Check
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: python new_sku_check.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: new-sku-problems
+          path: out/
+          if-no-files-found: ignore
