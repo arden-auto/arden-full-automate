@@ -19,6 +19,10 @@ on:
         description: "Refuse to remove for real when the plan holds more rows than this"
         required: false
         default: "40"
+      keep_at:
+        description: "A SKU whose live page shares at least this fraction of its words with the row's title counts as the same product and is held back"
+        required: false
+        default: "0.5"
       dry_run:
         description: "yes = report only; no = remove for real"
         required: false
@@ -49,6 +53,7 @@ jobs:
           SKUS: ${{ inputs.skus }}
           BACKUP_TAB: ${{ inputs.backup_tab }}
           MAX_REMOVE: ${{ inputs.max_remove }}
+          KEEP_AT: ${{ inputs.keep_at }}
           DRY_INPUT: ${{ inputs.dry_run }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           ONBUY_USE_SANDBOX: ${{ vars.ONBUY_USE_SANDBOX }}

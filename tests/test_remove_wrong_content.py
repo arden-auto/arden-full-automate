@@ -173,6 +173,7 @@ def test_workflow_is_a_dry_run_by_default_and_serialised_with_the_other_onbuy_jo
     dry = text.split("dry_run:")[1].split("permissions:")[0]
     assert 'default: "yes"' in dry
     assert "python remove_wrong_content.py" in text
+    assert "KEEP_AT: ${{ inputs.keep_at }}" in text
     assert "DELETE_SKUS_FILE: onbuy_delete_list.txt" in text and "python delete_listings_batch.py" in text
     # the OnBuy delete runs only for a real run, and only after the sheet step
     assert text.index("python remove_wrong_content.py") < text.index("python delete_listings_batch.py")
