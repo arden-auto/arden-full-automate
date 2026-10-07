@@ -48,6 +48,7 @@ def _run(monkeypatch, listings, skus, dry_run=False):
     monkeypatch.setattr(zl, "WANT", skus)
     monkeypatch.setattr(zl, "DRY_RUN", dry_run)
     monkeypatch.setattr(zl.time, "sleep", lambda s: None)
+    monkeypatch.setattr(zl, "READ_TRIES", 3)
     return onbuy
 
 
@@ -88,3 +89,23 @@ def test_a_listing_without_a_usable_price_is_never_zeroed_blind(monkeypatch):
     with pytest.raises(SystemExit):
         zl.main()
     assert onbuy.updates == []
+
+
+def test_a_read_that_lags_the_write_is_given_a_few_looks_before_it_is_a_problem(monkeypatch):
+    onbuy = _run(monkeypatch, L, ["A-1"])
+    real_update, reads = onbuy.update_listing, {"n": 0}
+
+    def lagging_update(**kw):                       # the write is accepted but reads keep the old stock for two looks
+        reads["want"] = kw["stock"]
+        onbuy.updates.append((kw["sku"], kw["price"], kw["stock"]))
+    onbuy.update_listing = lagging_update
+    real_send = onbuy._send
+
+    def send(method, url, **kw):
+        reads["n"] += 1
+        if reads["n"] >= 4 and "want" in reads:     # first read before the write, then 2 stale looks, then the truth
+            onbuy.listings["A-1"]["stock"] = 0
+        return real_send(method, url, **kw)
+    onbuy._send = send
+    zl.main()                                       # does not raise: the third look shows stock 0
+    assert onbuy.updates == [("A-1", 83.82, 0)]

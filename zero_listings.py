@@ -20,6 +20,8 @@ log = logging.getLogger(__name__)
 
 DRY_RUN = (os.getenv("DRY_RUN") or "1").strip().lower() not in ("0", "no", "false", "")
 WANT = [s.strip() for s in (os.getenv("SKUS") or "").split(",") if s.strip()]
+READ_TRIES = int(os.getenv("READ_TRIES") or "6")
+READ_WAIT = float(os.getenv("READ_WAIT") or "20")
 
 
 def read_listing(onbuy, sku):
@@ -78,12 +80,18 @@ def main():
             log.info("%s: DRY RUN - would set stock 0 at price %.2f", sku, price)
             continue
         onbuy.update_listing(sku=sku, price=price, stock=0)
-        log.info("%s: stock 0 sent", sku)
-        time.sleep(2)
-        after = read_listing(onbuy, sku)
-        log.info("%s: re-read -> stock %s price %.2f", sku, stock_of(after), price_of(after))
+        log.info("%s: stock 0 sent (OnBuy's answer echoes it)", sku)
+        # OnBuy's reads lag its writes by a minute or more: look again for a while before calling it a problem
+        after = None
+        for attempt in range(1, READ_TRIES + 1):
+            time.sleep(READ_WAIT)
+            after = read_listing(onbuy, sku)
+            log.info("%s: re-read %d -> stock %s price %.2f", sku, attempt, stock_of(after), price_of(after))
+            if stock_of(after) == 0:
+                break
         if stock_of(after) != 0:
-            log.warning("%s: the listing still shows stock %s (OnBuy may need a moment) - check again", sku, stock_of(after))
+            log.warning("%s: the listing still READS stock %s after %d looks - the update was accepted, check again later", sku,
+                        stock_of(after), READ_TRIES)
             failed += 1
     log.info("DONE%s: %d problem(s)", " (dry run)" if DRY_RUN else "", failed)
     if failed:
