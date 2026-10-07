@@ -1,0 +1,49 @@
+name: SKU Probe (read-only)
+
+# What does the sheet say about these SKUs, what does OnBuy show for their listings, and what did the product queue answer?
+# Prints content fields, OPCs, queue entries and the times a queue id encodes - never a cost. Writes nothing anywhere.
+# Uses the OnBuy token, so it queues in the onbuy-api group.
+
+on:
+  workflow_dispatch:
+    inputs:
+      skus:
+        description: "SKUs, comma-separated, exactly as in the sheet"
+        required: true
+      neighbours:
+        description: "Sheet rows to show above and below each SKU's row"
+        required: false
+        default: "3"
+      max_pages:
+        description: "Pages of 50 queue entries to read (1 GET each)"
+        required: false
+        default: "40"
+
+concurrency:
+  group: onbuy-api
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Probe
+        env:
+          SKUS: ${{ inputs.skus }}
+          NEIGHBOURS: ${{ inputs.neighbours }}
+          MAX_PAGES: ${{ inputs.max_pages }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          ONBUY_USE_SANDBOX: ${{ vars.ONBUY_USE_SANDBOX }}
+          ONBUY_CONSUMER_KEY: ${{ secrets.ONBUY_CONSUMER_KEY }}
+          ONBUY_SECRET_KEY: ${{ secrets.ONBUY_SECRET_KEY }}
+          ONBUY_SELLER_ID: ${{ secrets.ONBUY_SELLER_ID }}
+          ONBUY_SITE_ID: ${{ secrets.ONBUY_SITE_ID }}
+        run: python sku_probe.py
