@@ -7,3 +7,6 @@
 770666848642
 252752618914
 792229787007
+# 2026-10-07 listings that show ANOTHER product (created 2026-07-04, flagged by the nightly scan every night since 09-27, restocked by the sync in between: order T6Q82QZ sold the wrong product) - held at 0 until repaired
+2258075893340-Messam
+9505733984296-Messam

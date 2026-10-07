@@ -1,0 +1,5 @@
+# SKUs whose OnBuy listing shows ANOTHER product (title, description, images). The nightly price/stock audit holds them at stock 0
+# instead of pushing the sheet's stock, and protected_skus.txt stops the hourly sync from restocking them.
+# Remove a line only after the listing's content has been repaired (and then from protected_skus.txt too).
+2258075893340-Messam  # Amazon row 1052: sheet = Roxel bookshelf speaker; OnBuy shows a Shark WandVac (OPC PHMMVQF, created 2026-07-04)
+9505733984296-Messam  # Amazon row 1051: sheet = Salter coffee machine; OnBuy shows the Roxel RBS 300 speaker (OPC PB8QH2P, created 2026-07-04)
