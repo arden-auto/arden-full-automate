@@ -54,7 +54,21 @@ def main():
         raise SystemExit("OnBuy auth failed")
     listings = {}
     offset, limit = 0, 100
-    while True:
+    # Named SKUs only (REPAIR_ONLY_LISTED + REPAIR_SKUS): one filtered read each instead of a sweep of every live listing
+    # (~130 of OnBuy's 240 requests an hour at Arden's size).
+    sweep = not (REPAIR_ONLY_LISTED and REPAIR_SKUS)
+    if not sweep:
+        for _sku in sorted(REPAIR_SKUS):
+            _r = onbuy._send("GET", f"{BASE_URL}/listings", what=f"listing {_sku}",
+                             params={"site_id": onbuy.site_id, "limit": 5, "offset": 0, "filter[sku]": _sku}, timeout=60)
+            _r.raise_for_status()
+            _body = _r.json()
+            for _it in ((_body.get("results") if isinstance(_body, dict) else _body) or []):
+                if str((_it or {}).get("sku") or "").strip() == _sku:
+                    listings[_sku] = str(_it.get("name") or "").strip()
+            if _sku not in listings:
+                log.warning("%s: no live listing found", _sku)
+    while sweep:
         def _page(off=offset):
             # OnBuy GET quota / transient server trouble must not kill a
             # sweep mid-way (nightly 2026-09-20: Arden 429 after three
