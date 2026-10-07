@@ -18,6 +18,10 @@ on:
         description: "Pages of 50 queue entries to read (1 GET each)"
         required: false
         default: "40"
+      title_contains:
+        description: "Also list every sheet row whose title holds one of these words (comma-separated)"
+        required: false
+        default: ""
 
 concurrency:
   group: onbuy-api
@@ -40,6 +44,7 @@ jobs:
           SKUS: ${{ inputs.skus }}
           NEIGHBOURS: ${{ inputs.neighbours }}
           MAX_PAGES: ${{ inputs.max_pages }}
+          TITLE_CONTAINS: ${{ inputs.title_contains }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

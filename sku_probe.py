@@ -29,6 +29,8 @@ from retry_utils import RateLimitError, raise_for_status, with_retry
 SHEET_NAME = os.getenv("SHEET_NAME") or "Arden_Full_Feed_Master"
 WANT = [s.strip() for s in (os.getenv("SKUS") or "").split(",") if s.strip()]
 NEIGHBOURS = int(os.getenv("NEIGHBOURS") or "3")
+# TITLE_CONTAINS: also list every sheet row whose title holds one of these words (a product that moved to another SKU)
+TITLE_CONTAINS = [s.strip().lower() for s in (os.getenv("TITLE_CONTAINS") or "").split(",") if s.strip()]
 MAX_PAGES = int(os.getenv("MAX_PAGES") or "40")
 LISTING_KEYS = ("sku", "name", "price", "stock", "product_encoded_id", "opc", "product_codes", "product_listing_id",
                 "created_at", "updated_at", "product_url", "condition")
@@ -67,6 +69,21 @@ def read_tabs():
         header = [str(h).strip() for h in values[0]]
         out.append((ws.title, header, values))
     return out
+
+
+def show_title_matches(tabs):
+    """Rows whose title contains a TITLE_CONTAINS word: where does a product live in the sheet, under which SKU?"""
+    for title, header, values in tabs:
+        ix = {h: i for i, h in enumerate(header) if h}
+
+        def cell(r, k):
+            i = ix.get(k)
+            return str(r[i]).strip() if i is not None and i < len(r) else ""
+        for n, r in enumerate(values[1:], start=2):
+            t = cell(r, "Title").lower()
+            if any(w in t for w in TITLE_CONTAINS):
+                print(f"TITLE {title} row {n} | SKU {cell(r, 'SKU')[:34]:34s} | OPC {cell(r, 'OPC')[:9]:9s} | {cell(r, 'Sync Status')[:12]:12s} | "
+                      f"{cell(r, 'Title')[:90]} | {cell(r, 'Supplier URL')[-60:]}")
 
 
 def show_sheet(tabs):
@@ -179,6 +196,8 @@ def main():
     if not WANT:
         raise SystemExit("SKUS required")
     tabs = read_tabs()
+    if TITLE_CONTAINS:
+        show_title_matches(tabs)
     show_sheet(tabs)
     show_mirror()
     onbuy = OnBuyClient()
