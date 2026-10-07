@@ -5,6 +5,7 @@ Built for "the sheet is right but OnBuy shows another product's content". Prints
   SHEET     every row carrying the SKU (tab, row, sync/OPC columns, title, brand, category, supplier link, image, description head),
             plus NEIGHBOURS rows above and below it (SKU / title / OPC only) - a shifted create shows up as the neighbour's content
   LISTING   the live OnBuy listing found with a filtered GET (name, OPC, price, stock, created/updated, product url)
+  MIRROR    the Supabase registry row of the SKU (the product the pipeline recorded for it)
   QUEUE     every entry of the product queue's visible history for the SKU (status, OPC, error, the queue id and the time it encodes -
             a queue id is a Mongo ObjectId whose first 4 bytes are the creation time in UTC seconds)
 Never a cost or a shipping figure. Writes nothing anywhere.
@@ -21,6 +22,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 import sheet_tabs
+import supabase_db
 from onbuy_client import BASE_URL, OnBuyClient
 from retry_utils import RateLimitError, raise_for_status, with_retry
 
@@ -100,6 +102,23 @@ def show_sheet(tabs):
     return found
 
 
+MIRROR_KEYS = ("SKU", "Title", "Brand", "Category", "Category ID", "Supplier", "Supplier URL", "OPC", "Sync Status", "EAN",
+               "OnBuy Product Created", "OnBuy Listing Active", "OnBuy Product ID", "Last OnBuy Sync", "Last Updated", "Last Checked Time",
+               "Listing ID", "Stock", "Status", "Image URL")
+
+
+def show_mirror():
+    """The Supabase registry row of each SKU - what the pipeline recorded about the product this SKU belongs to."""
+    rows = supabase_db.fetch_full_rows(WANT)
+    for sku in WANT:
+        row = rows.get(sku)
+        if not row:
+            print(f"MIRROR {sku}: no registry row")
+            continue
+        print("MIRROR " + json.dumps({k: (str(row.get(k))[:130] if row.get(k) is not None else None) for k in MIRROR_KEYS if k in row},
+                                     ensure_ascii=False, default=str))
+
+
 def show_listings(onbuy):
     got = {}
     for sku in WANT:
@@ -161,6 +180,7 @@ def main():
         raise SystemExit("SKUS required")
     tabs = read_tabs()
     show_sheet(tabs)
+    show_mirror()
     onbuy = OnBuyClient()
     if not onbuy.authenticate():
         raise SystemExit("OnBuy auth failed")
