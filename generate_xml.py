@@ -27,6 +27,7 @@ from onbuy_client import OnBuyClient
 import keepa_client
 import keepa_cache
 import link_owners
+import adoption_guard
 from retry_utils import AuthError, PermanentError, RateLimitError, TransientError, raise_for_status, with_retry
 from sanitize import sanitize_description, validate_images, strip_emojis
 
@@ -2786,6 +2787,14 @@ def main():
                     except Exception as _exc:
                         logger.info("live-SKU pre-create check failed for %s (%s) - proceeding with create", sku, str(_exc)[:80])
                     if _live_hit:
+                        # Adopting only pushes price/stock - the page keeps whatever the old listing was created with. A SKU (barcode)
+                        # re-used for a DIFFERENT product therefore sells the old product's page (Arden 2258075893340-Messam,
+                        # 2026-10-07: a Roxel speaker row on a live Shark WandVac listing; OnBuy will not change that page). Refuse
+                        # to adopt a listing whose name is clearly another product; the row is flagged for a new SKU instead.
+                        _live_name = str((onbuy.get_listing(sku) or {}).get("name") or "")
+                        _conflict = adoption_guard.adoption_conflict(_live_name, title or str(row.get("Title") or ""))
+                        if _conflict:
+                            raise PermanentError(_conflict)
                         logger.info("SKU %s is already a live listing - adopting via update instead of creating a duplicate", sku)
                         result = onbuy.update_listing(sku=sku, price=selling_price, stock=stock)
                         action = "updated"
@@ -2922,6 +2931,12 @@ def main():
                     logger.info(
                         "Row %d (SKU %s): listing suspended on OnBuy - edits rejected until "
                         "reactivation, will keep retrying on rotation", i, sku)
+                elif "already live on OnBuy as a different product" in str(exc):
+                    # A data problem for a human (the SKU needs a new barcode), not a system fault: same worklist treatment as a
+                    # missing category - flagged on the row, the run stays green, and the row is re-checked on every visit.
+                    onbuy_needs_category += 1
+                    sync_status = f"Failed: {str(exc)[:300]}"
+                    logger.warning("SKU %s was not adopted: %s", sku, exc)
                 elif "no usable product image" in str(exc):
                     # Same worklist treatment as the category case: a human
                     # fixes the source images; the run stays green.

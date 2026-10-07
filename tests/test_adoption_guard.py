@@ -53,6 +53,20 @@ def test_the_threshold_is_below_the_nightly_scans_half_and_above_what_different_
     assert ag.title_similarity(SHARK_PAGE, ROXEL_ROW) < ag.MIN_SIMILARITY
 
 
+# ---------------------------------------------------------------- the sync uses it
+def test_the_sync_checks_a_live_listing_before_adopting_it_and_flags_the_row_without_failing_the_run():
+    text = (Path(__file__).resolve().parents[1] / "generate_xml.py").read_text(encoding="utf-8")
+    adopt = text.index("adopting via update instead of creating a duplicate")
+    guard = text.index("adoption_guard.adoption_conflict(")
+    assert guard < adopt                                                   # checked BEFORE the update goes out
+    assert "onbuy.get_listing(sku)" in text[guard - 400:guard + 200]
+    assert "raise PermanentError(_conflict)" in text[guard:adopt]
+    handler = text.index('elif "already live on OnBuy as a different product" in str(exc):')
+    assert "onbuy_needs_category += 1" in text[handler:handler + 400]       # worklist, not run_had_errors
+    assert "run_had_errors" not in text[handler:handler + 400]
+    assert "already live on OnBuy as a different product" in ag.adoption_conflict(SHARK_PAGE, ROXEL_ROW)
+
+
 # ---------------------------------------------------------------- OnBuyClient.get_listing (the read the guard uses)
 class _Resp:
     def __init__(self, status, body):
