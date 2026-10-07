@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
+import adoption_guard
 import sheet_tabs
 import supabase_db
 from onbuy_client import BASE_URL, OnBuyClient
@@ -30,6 +31,8 @@ SHEET_NAME = os.getenv("SHEET_NAME") or "Arden_Full_Feed_Master"
 WANT = [s.strip() for s in (os.getenv("SKUS") or "").split(",") if s.strip()]
 NEIGHBOURS = int(os.getenv("NEIGHBOURS") or "3")
 # TITLE_CONTAINS: also list every sheet row whose title holds one of these words (a product that moved to another SKU)
+# COMPACT: one line per SKU (sheet title, live OnBuy name, word overlap) for reviewing a long list - no neighbours, registry or queue.
+COMPACT = (os.getenv("COMPACT") or "").strip().lower() in ("1", "yes", "true")
 TITLE_CONTAINS = [s.strip().lower() for s in (os.getenv("TITLE_CONTAINS") or "").split(",") if s.strip()]
 MAX_PAGES = int(os.getenv("MAX_PAGES") or "40")
 LISTING_KEYS = ("sku", "name", "price", "stock", "product_encoded_id", "opc", "product_codes", "product_listing_id",
@@ -69,6 +72,35 @@ def read_tabs():
         header = [str(h).strip() for h in values[0]]
         out.append((ws.title, header, values))
     return out
+
+
+def show_compact(tabs, onbuy):
+    """PAIR lines: tab | row | SKU | sheet stock | sheet status | sheet title | OnBuy name | OPC | stock | price | created | overlap."""
+    where = {}
+    for title, header, values in tabs:
+        ix = {h: i for i, h in enumerate(header) if h}
+
+        def cell(r, k):
+            i = ix.get(k)
+            return str(r[i]).strip() if i is not None and i < len(r) else ""
+        for n, r in enumerate(values[1:], start=2):
+            sku = cell(r, "SKU").replace(",", "").strip()
+            if sku in WANT:
+                where.setdefault(sku, []).append((title, n, cell(r, "Stock"), cell(r, "Sync Status")[:28], cell(r, "Title")[:150]))
+    for sku in WANT:
+        rows = where.get(sku) or [("-", 0, "", "", "")]
+        try:
+            lst = onbuy.get_listing(sku)
+        except Exception as exc:  # noqa: BLE001 - read-only report
+            lst = None
+            print(f"PAIR|{sku}|listing read failed: {str(exc)[:80]}")
+        name = str((lst or {}).get("name") or "")
+        for tab, n, stock, status, title in rows:
+            sim = adoption_guard.title_similarity(name, title) if lst else -1
+            print(f"PAIR|{tab}|{n}|{sku}|{stock}|{status}|{title}|{name[:150]}|{(lst or {}).get('product_encoded_id') or ''}|"
+                  f"{(lst or {}).get('stock')}|{(lst or {}).get('price')}|{str((lst or {}).get('created_at') or '')[:10]}|{sim:.2f}"
+                  + ("" if len(rows) == 1 else f"|ON {len(rows)} ROWS"))
+        time.sleep(0.4)
 
 
 def show_title_matches(tabs):
@@ -196,6 +228,12 @@ def main():
     if not WANT:
         raise SystemExit("SKUS required")
     tabs = read_tabs()
+    if COMPACT:
+        onbuy = OnBuyClient()
+        if not onbuy.authenticate():
+            raise SystemExit("OnBuy auth failed")
+        show_compact(tabs, onbuy)
+        return
     if TITLE_CONTAINS:
         show_title_matches(tabs)
     show_sheet(tabs)
