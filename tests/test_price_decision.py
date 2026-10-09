@@ -314,12 +314,12 @@ def test_amazon_rows_re_derive_both_ways():
     assert up["how"] == "amazon" and up["selling_price"] == pricing.price_for_profit(cost, band_of(cost, RULE15), rule=RULE15)
 
 
-AMAZON_COST = 54.99                                                               # the SKU of 2026-10-07: 20% band, 15% category
+AMAZON_COST = 54.99                                                               # the SKU of 2026-10-07: top band (20% then, 25% since 2026-10-09), 15% category
 AMAZON_FORMULA = pricing.price_for_profit(AMAZON_COST, band_of(AMAZON_COST, RULE15), rule=RULE15)
 
 
 def test_the_real_amazon_row_prices_at_the_vat_inclusive_fee():
-    assert band_of(AMAZON_COST, RULE15) == 20 and AMAZON_FORMULA == 80.47        # was 79.03 with the 1.5-point uplift
+    assert band_of(AMAZON_COST, RULE15) == 25 and AMAZON_FORMULA == 83.83        # 80.47 at the previous 20% band, 79.03 with the 1.5-point uplift
 
 
 def test_an_amazon_price_a_person_raised_above_the_formula_is_kept():
@@ -756,7 +756,7 @@ def test_the_shown_profit_follows_the_cost_and_returns_to_the_band_when_the_form
     hand = 89.99
     mirror = {"Cost Price (£)": AMAZON_COST, "Fee %": "18", "Profit %": "34"}
     cell = "34.19"
-    dearer = 60.0                                                                # the formula is still below the manual price
+    dearer = 58.0                                                                # the formula (88.41 at the 25% band) is still below the manual price
     d = decide(dearer, RULE15, hand, "18.00", cell, supplier="Amazon", prev=mirror, sheet_cost=AMAZON_COST)
     assert d["how"] == "manual" and d["profit_shown"] == pytest.approx(_profit_earned(hand, dearer, RULE15), abs=0.005)
     assert d["profit_shown"] < 34.19                                              # a dearer cost leaves less profit on the same price

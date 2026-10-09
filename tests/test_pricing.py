@@ -1,6 +1,6 @@
 """Pricing ranges: every edge pinned. The schedule is user policy
 (2026-09-11 rewrite: plain profit percentages 100/80/40/20, the older
-total-markup notation retired) - a failing test here means the policy
+total-markup notation retired; top band 25 since 2026-10-09) - a failing test here means the policy
 changed on purpose (update the cases) or a regression (fix it)."""
 import sys
 from pathlib import Path
@@ -17,7 +17,7 @@ PROFIT_CASES = [
     (0.01, 100), (4.99, 100),                    # under 5
     (5.00, 80), (7.50, 80), (10.00, 80),         # 5-10 inclusive
     (10.01, 40), (30.00, 40), (50.00, 40),       # over 10 to 50 inclusive
-    (50.01, 20), (100.00, 20), (150.00, 20), (999.00, 20),  # above 50
+    (50.01, 25), (100.00, 25), (150.00, 25), (999.00, 25),  # above 50 (25 since 2026-10-09; 20 before, 15 for some days)
 ]
 
 
@@ -35,9 +35,9 @@ PRICE_CASES = [
     (dict(cost_price=20.0), 36.84, "GBP 20 -> 40% profit / 0.76"),
     (dict(cost_price=28.0, shipping_cost=4.0), 58.95, "28+4 ship = 32 total"),
     (dict(cost_price=45.0, shipping_cost=5.0), 92.11, "45+5 = 50 total -> still the 40% range"),
-    (dict(cost_price=60.0), 94.74, "GBP 60 -> 20% profit / 0.76"),
-    (dict(cost_price=150.0), 236.84, "GBP 150 -> 20% profit / 0.76"),
-    (dict(cost_price=95.0, shipping_cost=10.0), 165.79, "95+10 = 105 total"),
+    (dict(cost_price=60.0), 98.68, "GBP 60 -> 25% profit / 0.76"),
+    (dict(cost_price=150.0), 246.71, "GBP 150 -> 25% profit / 0.76"),
+    (dict(cost_price=95.0, shipping_cost=10.0), 172.70, "95+10 = 105 total -> 25% profit"),
     (dict(cost_price=9.0, shipping_cost=0.5), 22.50, "9.50 total -> 80% profit range"),
 ]
 
@@ -66,8 +66,8 @@ def test_category_fee_keeps_the_same_profit():
     # the retained amount still equals cost x (1 + profit) after the true deduction.
     rule = pricing.FeeRule("Consumer Electronics", 7)
     price = pricing.calculate_selling_price(150.0, fee_rule=rule)
-    assert price == round(150 * 1.20 / 0.916, 2)         # 196.51
-    assert abs(price * 0.916 - 150 * 1.20) < 0.02
+    assert price == round(150 * 1.25 / 0.916, 2)         # 204.69 (25% top band)
+    assert abs(price * 0.916 - 150 * 1.25) < 0.02
     assert abs(pricing.effective_fee_percent(price, rule) - 8.4) < 0.01
 
 
@@ -83,10 +83,11 @@ def test_legacy_profit_percents_expose_only_changed_ranges():
     # The 2026-09-11 rewrite: GBP 50-100 dropped 40 -> 20, above 100
     # 30/25 -> 20, under 5 rose to 100. Old DOWNWARD values must stay
     # recognisable so existing prices reprice down.
-    # (the top band also lists the temporary 15% of 2026-10-02: whichever of 20 / 15 is live, the other is superseded)
-    assert pricing.legacy_profit_percents(150.0) == [30, 25, 15]
-    assert pricing.legacy_profit_percents(60.0) == [40, 15]
-    assert pricing.legacy_profit_percents(100.0) == [40, 15]
+    # (the top band also lists its recent values 20 (standing until 2026-10-09) and 15 (temporary): whichever value is live,
+    # the others are superseded - and the live 25 is never listed)
+    assert pricing.legacy_profit_percents(150.0) == [30, 20, 15]
+    assert pricing.legacy_profit_percents(60.0) == [40, 20, 15]
+    assert pricing.legacy_profit_percents(100.0) == [40, 20, 15]
     assert pricing.legacy_profit_percents(3.0) == [80]
     # Ranges that kept their value offer no legacy - and never the current one.
     assert pricing.legacy_profit_percents(7.5) == []
@@ -134,11 +135,11 @@ def _formula_priced():
     return ns["_formula_priced"]
 
 
-def test_unset_env_keeps_the_standing_20(top_band):
+def test_unset_env_keeps_the_standing_25(top_band):
     p = top_band(None)
-    assert p.TOP_BAND_PROFIT == 20 and p.profit_percent(60.0) == 20
-    # the old 40% schedule and the temporary 15% top band are both "superseded" - recognised, never the live value
-    assert p.legacy_profit_percents(60.0) == [40, 15]
+    assert p.TOP_BAND_PROFIT == 25 and p.profit_percent(60.0) == 25
+    # the old 40% schedule, the previous standing 20 and the temporary 15 are all "superseded" - recognised, never the live value
+    assert p.legacy_profit_percents(60.0) == [40, 20, 15]
     assert p.legacy_profit_percents(30.0) == []              # below the top band nothing ever moved
 
 
@@ -152,36 +153,39 @@ def test_fifteen_moves_only_the_band_above_50(top_band):
 
 def test_fifteen_price_is_the_lower_formula_price(top_band):
     p = top_band("15")
-    assert abs(p.calculate_selling_price(60.0) - 90.79) < 0.01    # 60 x 1.15 / 0.76 (was 94.74 at 20%)
+    assert abs(p.calculate_selling_price(60.0) - 90.79) < 0.01    # 60 x 1.15 / 0.76 (98.68 at the standing 25%)
     assert p.calculate_selling_price(30.0) == pytest.approx(55.26, abs=0.01)  # 40% range untouched: 30 x 1.4 / 0.76
 
 
-def test_prices_set_at_20_stay_recognisable_so_they_follow_down_and_come_back_up(top_band):
+def test_prices_set_at_15_and_20_stay_recognisable_so_they_follow_up_to_the_25(top_band):
     cost, ship = 80.0, 0.0
-    p = top_band(None)
-    price20 = p.calculate_selling_price(cost, ship)
-    p = top_band("15")
-    assert 20.0 in p.legacy_profit_percents(cost)
-    assert _formula_priced()(price20, cost, ship, None) is True          # the sync lowers a price it set at 20%
-    price15 = p.calculate_selling_price(cost, ship)
-    assert price15 < price20
-    p = top_band(None)                                                    # reverted: the 15% price is below the formula,
-    assert p.calculate_selling_price(cost, ship) == price20               # so max(existing, formula) raises it back
-
-
-def test_after_the_revert_a_price_set_at_15_is_still_recognised_and_rises_back(top_band):
-    cost, ship = 80.0, 0.0
-    p = top_band("15")
-    price15 = p.calculate_selling_price(cost, ship)
-    p = top_band(None)                                                    # reverted to the standing 20
-    assert 15.0 in p.legacy_profit_percents(cost)                          # so a Profit % cell of 15.00 is the automation's own
+    price20 = top_band("20").calculate_selling_price(cost, ship)          # the previous standing band
+    price15 = top_band("15").calculate_selling_price(cost, ship)          # the temporary one
+    p = top_band(None)                                                    # the standing 25 (2026-10-09)
+    assert 20.0 in p.legacy_profit_percents(cost) and 15.0 in p.legacy_profit_percents(cost)
+    assert _formula_priced()(price20, cost, ship, None) is True            # both are the automation's own...
     assert _formula_priced()(price15, cost, ship, None) is True
-    assert p.calculate_selling_price(cost, ship) > price15                # and max(existing, formula) raises it
+    price25 = p.calculate_selling_price(cost, ship)
+    assert price15 < price20 < price25                                    # ...and max(existing, formula) raises them to the 25% price
+
+
+def test_a_price_set_at_25_stays_recognisable_when_the_band_is_moved_again(top_band):
+    cost, ship = 80.0, 0.0
+    price25 = top_band(None).calculate_selling_price(cost, ship)
+    p = top_band("20")                                                    # a temporary move of the top band on command
+    assert 25.0 in p.legacy_profit_percents(cost)                         # so a Profit % cell of 25.00 is the automation's own
+    assert _formula_priced()(price25, cost, ship, None) is True            # and the price follows the formula down
+    assert p.calculate_selling_price(cost, ship) < price25
+    p = top_band("15")
+    assert 25.0 in p.legacy_profit_percents(cost) and 20.0 in p.legacy_profit_percents(cost)
+    p = top_band(None)                                                    # reverted: the 25% price is the formula again
+    assert _formula_priced()(price25, cost, ship, None) is True
+    assert p.calculate_selling_price(cost, ship) == price25
 
 
 @pytest.mark.parametrize("bad", ["garbage", "150", "-3", " ", "nan"])
-def test_a_bad_value_falls_back_to_the_standing_20_instead_of_breaking_the_run(top_band, bad):
-    assert top_band(bad).TOP_BAND_PROFIT == 20
+def test_a_bad_value_falls_back_to_the_standing_25_instead_of_breaking_the_run(top_band, bad):
+    assert top_band(bad).TOP_BAND_PROFIT == 25
 
 
 # ---------------------------------------------------------------- the fee model (2026-10-07): commission + the VAT OnBuy adds

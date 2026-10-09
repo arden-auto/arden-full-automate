@@ -21,14 +21,14 @@ fee assumption into the numbers is retired):
   cost + shipping  under GBP 5    -> 100% profit
   cost + shipping  GBP 5 to 10    ->  80% profit
   cost + shipping  GBP 10 to 50   ->  40% profit
-  cost + shipping  above GBP 50   ->  20% profit
+  cost + shipping  above GBP 50   ->  25% profit
 
 Cheap products carried too little absolute profit at a flat markup - a
 GBP 3 item earned pennies after the fee. The ranges apply to the same
 base the profit multiplies (cost + shipping). Range edges: the first
 bound is strict ("under 5"), every later range's upper bound is inclusive
 - exactly GBP 10 falls in the 80% range, exactly GBP 50 in the 40% range;
-strictly above 50 gets 20%. This applies to already-listed products too:
+strictly above 50 gets 25% (20% until 2026-10-09, 15% for some days in between). This applies to already-listed products too:
 every sweep recalculates and raises any price below the formula
 (max(existing, formula) in generate_xml.py) - only a manually-set price
 ABOVE the formula is left alone, per the never-lower rule - and a price
@@ -79,9 +79,12 @@ MIN_PROFIT_PERCENT = 20
 # for rows without a category tier and for stores not yet in category mode.
 PLATFORM_FEE_PERCENT = 20  # OnBuy commission - charged on the SELLING price
 
-# The standing profit for the top band (cost + shipping above GBP 50).
-STANDARD_TOP_BAND_PROFIT = 20.0
-# The value it was moved to for some days (user 2026-10-02).
+# The standing profit for the top band (cost + shipping above GBP 50): 25% since 2026-10-09 (user: "increase Makstore and Arden
+# profit from 15 to 25%"). Before it: 20% standing (2026-09-11) and 15% for some days (2026-10-02 .. 10-09, the workflows' default).
+STANDARD_TOP_BAND_PROFIT = 25.0
+# The standing value until 2026-10-09 - superseded, but prices and Profit % cells written under it are still the automation's own.
+PREVIOUS_TOP_BAND_PROFIT = 20.0
+# The value it was moved to for some days (user 2026-10-02 .. 2026-10-09).
 TEMPORARY_TOP_BAND_PROFIT = 15.0
 
 
@@ -107,7 +110,7 @@ PROFIT_BANDS = (
     (5.0, 100),    # under GBP 5 (80% -> 100%, 2026-09-11)
     (10.0, 80),    # GBP 5-10 inclusive (2026-09-11 schedule)
     (50.0, 40),    # over GBP 10 up to 50 inclusive (2026-09-11 schedule)
-    (None, TOP_BAND_PROFIT),    # above GBP 50: 20% standing (40%/25% -> 20%, 2026-09-11)
+    (None, TOP_BAND_PROFIT),    # above GBP 50: 25% standing (2026-10-09; was 20%, 15% for some days from 2026-10-02)
 )
 
 
@@ -140,12 +143,15 @@ _SUPERSEDED_PROFIT_BANDS = (
     # same day by the full range rewrite
     ((5.0, 80), (10.0, 80), (30.0, 40), (100.0, 40), (None, 25)),
 ) + (
-    # The top band's two recent values - the standing 20 and the temporary 15 - are BOTH superseded whichever one
-    # is live (legacy_profit_percents drops the live one), so a price the automation set at the other still
-    # follows the formula DOWN, and a Profit % cell it wrote under the other is still its own: while the band is
-    # 15 the 20.00 cells, after the revert the 15.00 ones, must not turn into manual overrides.
-    ((5.0, 100), (10.0, 80), (50.0, 40), (None, STANDARD_TOP_BAND_PROFIT)),
+    # The top band's earlier values - the previous standing 20 and the temporary 15 - are BOTH superseded whichever value
+    # is live (legacy_profit_percents drops the live one), so a price the automation set at either is still its own
+    # (it follows the formula - UP to the 25 now, down again if the band is ever lowered) and a Profit % cell it wrote under
+    # either must not turn into a manual override: the 15.00 and 20.00 cells of the top-band rows move to 25 with their prices.
+    ((5.0, 100), (10.0, 80), (50.0, 40), (None, PREVIOUS_TOP_BAND_PROFIT)),
     ((5.0, 100), (10.0, 80), (50.0, 40), (None, TEMPORARY_TOP_BAND_PROFIT)),
+    # ...and the standing 25 itself, so that a temporary move of the band (PROFIT_ABOVE_50_PERCENT) later still recognises the
+    # prices and Profit % cells written at 25 (legacy_profit_percents never lists the value that is live).
+    ((5.0, 100), (10.0, 80), (50.0, 40), (None, STANDARD_TOP_BAND_PROFIT)),
 )
 
 
