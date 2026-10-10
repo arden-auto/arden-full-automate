@@ -31,7 +31,7 @@ def main():
             sku = str((item or {}).get("sku") or "").strip()
             if sku:
                 skus.append(sku)
-        if len(items) < 100:
+        if len(items) < 100 and not onbuy.more_listings(offset, 100):
             break
         offset += 100
     print(f"Live listings: {len(skus)}")

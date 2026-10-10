@@ -54,7 +54,7 @@ def page_live_prices(onbuy):
                 price = 0.0
             if sku and price > 0 and sku not in out:
                 out[sku] = price
-        if len(items) < limit:
+        if len(items) < limit and not onbuy.more_listings(offset, limit):
             break
         offset += limit
         time.sleep(0.3)
