@@ -1,0 +1,79 @@
+name: Sweep Impact (report-only)
+
+# 2026-10-10: what do the nightly checks see when the listing sweep is COMPLETE? The old sweeps stop at the first short page (Makstore: the page at
+# offset 9,100 holds 99 items), so the oldest ~1,900 listings were never compared with the sheet. This takes ONE complete sweep (sale_guard in dry-run
+# mode: census + dump + the shared sweep cache) and runs the nightly content scan, the zero-stock pass (DRY RUN) and the price audit (report only, no fix)
+# on it. Writes nothing to OnBuy, the sheet or Supabase; no alert mail (no SMTP secrets here). Read the MM| / ORPHAN| / target / drift lines of the log.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: onbuy-api
+  cancel-in-progress: false
+
+jobs:
+  impact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      LISTINGS_CACHE: "listings_cache.json"
+      LISTINGS_CACHE_MAX_AGE: "7200"
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      ONBUY_USE_SANDBOX: ${{ vars.ONBUY_USE_SANDBOX }}
+      ONBUY_CONSUMER_KEY: ${{ secrets.ONBUY_CONSUMER_KEY }}
+      ONBUY_SECRET_KEY: ${{ secrets.ONBUY_SECRET_KEY }}
+      ONBUY_TEST_CONSUMER_KEY: ${{ secrets.ONBUY_TEST_CONSUMER_KEY }}
+      ONBUY_TEST_SECRET_KEY: ${{ secrets.ONBUY_TEST_SECRET_KEY }}
+      ONBUY_SELLER_ID: ${{ secrets.ONBUY_SELLER_ID }}
+      ONBUY_SITE_ID: ${{ secrets.ONBUY_SITE_ID }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Complete sweep (sale guard, dry run)
+        env:
+          DRY_RUN: "1"
+          DUMP: "sweep_dump.json"
+        run: python -u sale_guard.py
+      - name: Content scan, first tab
+        if: ${{ !cancelled() }}
+        env:
+          SHEET_TAB: ""
+        run: python -u scan_content_mismatch.py
+      - name: Content scan, Amazon tab
+        if: ${{ !cancelled() }}
+        env:
+          SHEET_TAB: "Amazon"
+        run: python -u scan_content_mismatch.py
+      - name: Zero-stock pass DRY RUN, first tab
+        if: ${{ !cancelled() }}
+        env:
+          SHEET_TAB: ""
+          DRY_RUN: "1"
+        run: python -u zero_stock_mismatched.py
+      - name: Zero-stock pass DRY RUN, Amazon tab
+        if: ${{ !cancelled() }}
+        env:
+          SHEET_TAB: "Amazon"
+          DRY_RUN: "1"
+        run: python -u zero_stock_mismatched.py
+      - name: Price audit, report only
+        if: ${{ !cancelled() }}
+        env:
+          FIX: ""
+        run: python -u audit_price_drift.py
+      - name: Upload the sweep
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: sweep-dump
+          path: sweep_dump.json
+          retention-days: 3
+          if-no-files-found: ignore
