@@ -1,28 +1,3 @@
 # OnBuy content mismatch 2026-08-21 scan: no price/stock pushes until repaired/delisted.
-252229531661
-745839240011
 403510105966
 668699974523
-691787862624
-770666848642
-252752618914
-792229787007
-# 2026-10-07 listings that show ANOTHER product (created 2026-07-04, flagged by the nightly scan every night since 09-27, restocked by the sync in between: order T6Q82QZ sold the wrong product) - held at 0 until repaired
-2258075893340-Messam
-9505733984296-Messam
-# 2026-10-07 listings whose OnBuy page is ANOTHER product (nightly 'MM' list, checked again against OnBuy that day) - no pushes; the user ordered them deleted (row + listing)
-0314326528453-Messam
-0764518709991-Messam
-0786316950429-Messam
-0840671132057-Messam
-0908317922094-Messam
-274343019269
-345557829125
-350877968959
-742179283265
-742422856024
-787143343026
-796423408478
-908770888135
-0115901281738 -Messam
-0658759452054-Messam

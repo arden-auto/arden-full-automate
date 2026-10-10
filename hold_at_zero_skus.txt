@@ -1,26 +1,3 @@
 # SKUs whose OnBuy listing shows ANOTHER product (title, description, images). The nightly price/stock audit holds them at stock 0
 # instead of pushing the sheet's stock, and protected_skus.txt stops the hourly sync from restocking them.
 # Remove a line only after the listing's content has been repaired (and then from protected_skus.txt too).
-2258075893340-Messam  # Amazon row 1052: sheet = Roxel bookshelf speaker; OnBuy shows a Shark WandVac (OPC PHMMVQF, created 2026-07-04)
-9505733984296-Messam  # Amazon row 1051: sheet = Salter coffee machine; OnBuy shows the Roxel RBS 300 speaker (OPC PB8QH2P, created 2026-07-04)
-# 2026-10-07 more listings that show ANOTHER product - held at stock 0 until the delete the user asked for has run
-0314326528453-Messam  # Amazon row 918: sheet = Cordless Leaf Blower, 2 Batteries 4.0Ah Garden; OnBuy shows LEEIKOO Cordless Hedge Trimmer, 4000mAh Batter (OPC PVMRCHF)
-0764518709991-Messam  # Amazon row 1177: sheet = KODAK PIXPRO FZ55-GRY Digital Camera with 16MP; OnBuy shows 10FT Stand Up Surfboard Surfboards inflatable  (OPC PXSQ6FX)
-0786316950429-Messam  # Amazon row 1188: sheet = Oakcastle F101 SIM-Free Unlocked 2G Small Mobi; OnBuy shows REDUCED! BRAND NEW SEALED IMO Dash 4G Mini Mob (OPC PXX6RYS)
-0840671132057-Messam  # Amazon row 1192: sheet = Shark CryoGlow LED Face Mask with Under-Eye Co; OnBuy shows 2025 OUKITEL WP53S Rugged Smartphone Android 1 (OPC PXXDFJQ)
-0908317922094-Messam  # Amazon row 1241: sheet = Inofia Small Double Mattresses 4FT 10.6 Inch H; OnBuy shows Comfee CFN13E71/W-UK 7Kg Washing Machine White (OPC PY6DZ2M)
-252229531661  # Sheet1 row 36: sheet = 36070 Telescope with Adjustable Tripod Phone A; OnBuy shows 2 USB-C & 2 USB-A Extension Lead Power Strip t (OPC PXGGPPZ)
-252752618914  # Sheet1 row 39: sheet = Mattress Vacuum Cleaner with Uv Light, 16 Kpa ; OnBuy shows MPOW Wireless Bluetooth Mobile Phone Hands Fre (OPC PXGGPP2)
-274343019269  # Sheet1 row 95: sheet = Battery Switch Isolator Cut Off Kill for Knob ; OnBuy shows 10 Pack GU10 LED Bulbs 5W Cool White 6000K spo (OPC PXKY9X9)
-345557829125  # Sheet1 row 731: sheet = 4kg Vented Tumble Dryer 5 Modes Wall mounted F; OnBuy shows 4L Electric Kitchen Composter Smart Countertop (OPC PXKYF57)
-350877968959  # Sheet1 row 761: sheet = 6.5L Large Air Fryer 1350W Low Fat Oil free He; OnBuy shows 4L Electric Kitchen Composter Smart Countertop (OPC PXKYF7N)
-691787862624  # Sheet1 row 2025: sheet = TV Wall Bracket Mount Swivel Tilt for 32 40 42; OnBuy shows Power Bank ?0mah 66W Portable Fast Charger E (OPC PXQQNV6)
-742179283265  # Sheet1 row 2588: sheet = Heavy Duty Cordless Impact Wrench 21V 1200Nm 2; OnBuy shows 21V Cordless Grass Trimmer Strimmer Weed Cutte (OPC PXTXNN7)
-742422856024  # Sheet1 row 2589: sheet = 4D 16-Line Laser Level 21V Green Line 4 x 360 ; OnBuy shows 21V Cordless Grass Trimmer Strimmer Powerful W (OPC PXTXNP9)
-745839240011  # Sheet1 row 2630: sheet = YNR Mini Penscope Otoscope Medical Diagnostic ; OnBuy shows MightySkins SAGNOTE9-Fire And Ice Skin for Sam (OPC PB2CH2R)
-770666848642  # Sheet1 row 2873: sheet = Sports Ear Hook Wireless Earbuds Over Ear Runn; OnBuy shows 90000mAh Power Bank USB Charger 4 Cable Batter (OPC PXX7HGX)
-787143343026  # Sheet1 row 3036: sheet = Unlocked 6.80" Android Mobile Smartphone Dual ; OnBuy shows Unlocked 7.3 Inch Android Mobile Phone Dual SI (OPC PXXHVJ2)
-796423408478  # Sheet1 row 3120: sheet = 2100ml Dehumidifier Electric for Condensation ; OnBuy shows Self Cleaning Ice Machine 12kg Capacity with S (OPC PXXK7XN)
-908770888135  # Sheet1 row 3769: sheet = Lubluelu V1 18kpa 450W Portable Stain Car Upho; OnBuy shows 20L Cylinder Vacuum Cleaner Wet and Dry Bagles (OPC PY6R552)
-0115901281738 -Messam  # Sheet1 row 6105: sheet = NEW Power Source Makita 14.4v 18v Battery Adap; OnBuy shows 2 Pack Makita 18V Battery Adapter BL1830 BL185 (OPC PT56FHM)
-0658759452054-Messam  # Sheet1 row 6260: sheet = HAND VACUUM PUMP HELD BRAKE BLEEDER TESTER SET; OnBuy shows MPOW Flame Wireless Bluetooth Sports Headphone (OPC PXNYMKK)
