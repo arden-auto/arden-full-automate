@@ -1,0 +1,22 @@
+# SKUs checked BY HAND on 2026-10-10 (full row title next to the full live page name): the OnBuy page IS this row's product, only worded
+# differently (shared catalogue titles), so the nightly content check must not count them as 'shows another product' and must not zero them.
+# One SKU per line; text after '#' is a note. A listing whose page later turns into a different product must be taken off this list.
+
+403510105966  # 21V Cordless Leaf Blower Power Jet Dry Fan Mini 40
+3348901548465-Messam  # PAMXIEGER 25800mAh Portable Charger 22.5W Power Ba
+0389550131526-Messam  # 1-10PCS Thickened Magic Cleaning Cloth Streak Free
+6957303813445-Messam  # UGREEN USB C Charger 40W Nexode Gan Dual Ports Plu
+299806095734  # For VW GOLF MK5 MK6 Polo Apple Carplay Car Stereo 
+5054061101751-Messam  # Beldray Window Vac - Cordless Condensation Removal
+4852077469893-Messam  # SHENGRUI 9‑Tier 360° Rotatable Cosmetic Storage Ho
+5051219234095-Messam  # vancasso Black Dinner Set, Stoneware Dinner Sets f
+8000000811479-Messam  # Harrows Dartboard Surround – 4-Piece Wall Protecto
+3121780676630-Messam  # POSEIDON Wirless Tattoo Gun Kit with 2PCS Battery 
+0000064263649-Messam  # MORENTO HEPA Air Purifier for Bedroom, Quiet Clean
+6941876213528-Messam  # UGREEN Nexode 140W 25000mAh Power Bank 3-Port USB 
+3121812142119-Messam  # Avio Ryanair Cabin Bags 55 x 40 x 20 | Lightweight
+3162154231826-Messam  # SZO Cool Mist Humidifier for Bedroom, Mini Air Hum
+0000083990281-Messam  # Retro CD Player with Speakers, Bluetooth Receiver,
+0000060627360-Messam  # BabyDan Folding Travel Cot, 60 x 120 cm, Black
+0196786895999-Messam  # HP OfficeJet Pro 9120e All-in-One Printer | Colour
+8670969061491-Messam  # EVICIV 17.5" Portable Monitor, 1920x1200 for Lapto
