@@ -158,7 +158,12 @@ def report(ws_title, rows, amazon):
     print(f"\n=== {ws_title} ({'Amazon' if amazon else 'eBay'} pricing): {len(rows)} rows with a SKU | " + ", ".join(f"{k} {v}" for k, v in sorted(acts.items())))
     skips = Counter(r["note"] for r in rows if r["action"] == "skip")
     for note, n in skips.most_common():
-        print(f"  skip: {n} x {note}")
+        extra = ""
+        if note == "no cost":
+            # rows with nothing to price from; the ones that are IN STOCK WITH A PRICE are live on the sheet's say-so and their margin cannot be checked
+            live = sum(1 for r in rows if r["action"] == "skip" and r["note"] == "no cost" and r["stock"] > 0 and _num(r["old"]["Selling Price (£)"]) > 0)
+            extra = f" ({live} of them in stock with a price - their margin cannot be checked)"
+        print(f"  skip: {n} x {note}{extra}")
     for act in ("lower", "raise"):
         sel = [r for r in rows if r["action"] == act]
         if not sel:
