@@ -1,1 +1,3 @@
 # OnBuy content mismatch 2026-08-21 scan: no price/stock pushes until repaired/delisted.
+# 2026-10-12 borderline flags (same type, other model/spec/brand): the user ordered them FROZEN at stock 0, not deleted - release only after the page/row is fixed
+5353618420445-Messam  # row = Screen Mom spray + microfibre cloth 16oz; page = generic 'Screen Cleaner Kit' (flagged as a shift from the neighbouring row) - other b

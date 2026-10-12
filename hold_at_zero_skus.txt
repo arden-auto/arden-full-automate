@@ -1,3 +1,5 @@
 # SKUs whose OnBuy listing shows ANOTHER product (title, description, images). The nightly price/stock audit holds them at stock 0
 # instead of pushing the sheet's stock, and protected_skus.txt stops the hourly sync from restocking them.
 # Remove a line only after the listing's content has been repaired (and then from protected_skus.txt too).
+# 2026-10-12 borderline flags (same type, other model/spec/brand): the user ordered them FROZEN at stock 0, not deleted - release only after the page/row is fixed
+5353618420445-Messam  # row = Screen Mom spray + microfibre cloth 16oz; page = generic 'Screen Cleaner Kit' (flagged as a shift from the neighbouring row) - other b
