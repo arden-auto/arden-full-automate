@@ -1,5 +1,5 @@
 """delivery_templates.py - every listing on the delivery template of its supplier (user 2026-10-13): eBay rows -> the eBay template, Amazon rows -> the Amazon
-template, everything else (legacy / AliExpress catalogue) stays where it is."""
+template, everything else (legacy / AliExpress catalogue) stays where it is; with CLEAR_HANDLING a sheet-sourced listing's own handling time is taken off."""
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -34,7 +34,20 @@ def test_plan_moves_only_what_is_off_its_suppliers_template():
     classes = {"E1": "ebay", "E2": "ebay", "A1": "amazon", "A2": "amazon"}
     moves = dt.plan(listings, classes, "54810", "54809")
     assert [(m[0], m[2], m[3]) for m in moves] == [("E1", "52506", "54810"), ("A1", "52506", "54809"), ("A2", "54810", "54809")]
-    assert moves[0][4:] == ("9.99", 3)                                            # the listing's own price and stock travel with the move
+    assert moves[0][4:6] == ("9.99", 3) and moves[0][7] is None                 # the listing's own price and stock travel; handling untouched
+
+
+def test_clear_handling_takes_the_own_handling_time_off_sheet_sourced_listings_only():
+    listings = [listing("E1", 54810, handling=2), listing("E2", 54810, handling="0"), listing("A1", 54809, handling="5"), listing("L1", 52506, handling=7)]
+    classes = {"E1": "ebay", "E2": "ebay", "A1": "amazon"}
+    moves = dt.plan(listings, classes, "54810", "54809", clear_handling=True)
+    assert [(m[0], m[3], m[6], m[7]) for m in moves] == [("E1", "54810", 2, 0), ("A1", "54809", 5, 0)]      # L1: supplier unknown, E2: nothing to clear
+    assert dt.plan(listings, classes, "54810", "54809", clear_handling=False) == []
+
+
+def test_a_listing_off_its_template_and_with_its_own_handling_moves_both_in_one_go():
+    moves = dt.plan([listing("E1", 52506, handling=4)], {"E1": "ebay"}, "54810", "54809", clear_handling=True)
+    assert moves == [("E1", "ebay", "52506", "54810", "9.99", 3, 4, 0)]
 
 
 def test_census_counts_templates_and_handling_per_supplier_class():
@@ -45,25 +58,38 @@ def test_census_counts_templates_and_handling_per_supplier_class():
     assert any(l.strip().startswith("legacy") and "1 listings" in l for l in lines)
 
 
-def test_put_templates_sends_the_listings_own_price_and_stock_plus_the_template_and_reads_each_answer():
+def test_put_listings_sends_the_listings_own_price_and_stock_plus_only_the_fields_asked_for():
     sent = {}
 
     def _send(method, url, what=None, json=None, timeout=None):
         sent.update(method=method, url=url, body=json)
         return SimpleNamespace(status_code=200, text="ok",
-                               json=lambda: {"results": [{"sku": "E1", "status": "ok"}, {"sku": "E2", "error": "SKU does not exist"}]})
+                               json=lambda: {"results": [{"sku": "E1", "status": "ok"}, {"sku": "E2", "error": "SKU does not exist"}, {"sku": "E3", "status": "ok"}]})
 
     onbuy = SimpleNamespace(_send=_send, site_id=2000, seller_id=7)
-    status, outcome, _ = dt.put_templates(onbuy, [("E1", 9.99, 3, "54810"), ("E2", 5.0, 0, "54810")])
-    assert status == 200 and outcome == {"E1": "", "E2": "SKU does not exist"}
+    status, outcome, _ = dt.put_listings(onbuy, [("E1", 9.99, 3, "54810", None), ("E2", 5.0, 0, "54810", 0), ("E3", 1.0, 1, None, 0)])
+    assert status == 200 and outcome == {"E1": "", "E2": "SKU does not exist", "E3": ""}
     assert sent["method"] == "PUT" and sent["url"].endswith("/listings/by-sku")
     assert sent["body"]["listings"][0] == {"sku": "E1", "price": 9.99, "stock": 3, "boost_marketing_commission": 0, "delivery_template_id": 54810}
+    assert sent["body"]["listings"][1] == {"sku": "E2", "price": 5.0, "stock": 0, "boost_marketing_commission": 0, "delivery_template_id": 54810, "handling_time": 0}
+    assert sent["body"]["listings"][2] == {"sku": "E3", "price": 1.0, "stock": 1, "boost_marketing_commission": 0, "handling_time": 0}
+    assert dt.put_templates is dt.put_listings
+
+
+def test_handling_csv_lists_only_the_listings_with_their_own_handling_time_longest_first(tmp_path):
+    listings = [listing("E1", 54810, handling=2), listing("E2", 54810, handling=0), listing("L1", 52506, handling="7")]
+    path = tmp_path / "h.csv"
+    assert dt.write_handling_csv(listings, {"E1": "ebay", "E2": "ebay"}, str(path)) == 2
+    rows = path.read_text(encoding="utf-8").splitlines()
+    assert rows[0].startswith("sku,supplier,handling_time_days") and rows[1].startswith("L1,legacy,7") and rows[2].startswith("E1,ebay,2")
 
 
 def test_num_tolerates_strings_and_blanks():
-    assert dt.num("243.83", float) == 243.83 and dt.num("6", int) == 6 and dt.num("", int) is None and dt.num(None, float) is None
+    assert dt.num("243.83", float) == 243.83 and dt.num("6", int) == 6 and dt.num("6.0", int) == 6 and dt.num("", int) is None and dt.num(None, float) is None
+    assert dt.own_handling({"handling_time": "5"}) == 5 and dt.own_handling({"handling_time": None}) == 0 and dt.own_handling({}) == 0
 
 
 def test_the_workflow_is_plan_by_default_and_serialised_with_the_other_onbuy_jobs():
     text = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "delivery_templates.yml").read_text(encoding="utf-8")
     assert "group: onbuy-api" in text and 'default: "plan"' in text and "python -u delivery_templates.py" in text
+    assert "CLEAR_HANDLING: ${{ inputs.clear_handling }}" in text

@@ -27,6 +27,10 @@ on:
         description: "mode=apply: refuse when more listings than this would move"
         required: false
         default: "3000"
+      clear_handling:
+        description: "yes = also take a sheet-sourced listing's OWN handling time off (0 = the template decides); legacy listings untouched"
+        required: false
+        default: "no"
 
 concurrency:
   group: onbuy-api
@@ -51,6 +55,7 @@ jobs:
           TEMPLATE_AMAZON: ${{ inputs.template_amazon }}
           TEST_SKU: ${{ inputs.test_sku }}
           MAX_CHANGES: ${{ inputs.max_changes }}
+          CLEAR_HANDLING: ${{ inputs.clear_handling }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           ONBUY_USE_SANDBOX: ${{ vars.ONBUY_USE_SANDBOX }}
           ONBUY_CONSUMER_KEY: ${{ secrets.ONBUY_CONSUMER_KEY }}
@@ -64,5 +69,7 @@ jobs:
         if: always()
         with:
           name: delivery-template-plan
-          path: delivery_template_plan.csv
+          path: |
+            delivery_template_plan.csv
+            handling_times.csv
           if-no-files-found: ignore

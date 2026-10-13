@@ -1,15 +1,17 @@
-"""Put every listing on the delivery template of its supplier (user 2026-10-13, Arden first): eBay-sourced listings on the eBay template, Amazon-sourced on the
-Amazon template, everything else (the legacy / AliExpress catalogue) stays on the account's default (AliExpress) template. The templates carry the handling and
-delivery times the user set on the OnBuy dashboard; this tool only ASSIGNS listings to them.
+"""Put every listing on the delivery template of its supplier (user 2026-10-13): eBay-sourced listings on the eBay template, Amazon-sourced on the Amazon
+template, everything else (the legacy / AliExpress catalogue) stays where it is. The templates carry the handling and delivery times the user set on the
+OnBuy dashboard; this tool only ASSIGNS listings to them - and, with CLEAR_HANDLING=1, takes a listing's OWN handling time off (sets it to 0) so the
+template alone decides (user 2026-10-13: "move them according to their respective suppliers").
 
 MODE=plan (default): sweep the listings (or reuse the nightly's shared sweep, LISTINGS_CACHE), join them to the sheet (first product tab = eBay rows by their
-link, Amazon tab = Amazon rows), print the template / handling-time census and how many listings would move - writes nothing.
-MODE=test: ONE PUT /v2/listings/by-sku for TEST_SKU carrying the listing's own price and stock plus delivery_template_id, then a filtered read-back: proves
-whether the API accepts the field at all (only that listing's template changes).
-MODE=apply: batched PUTs (500 per call; the listing's own price and stock, only the template changes) for every listing that is off its supplier's template,
-then a read-back of a sample. MAX_CHANGES caps one run.
-Env: TEMPLATE_EBAY, TEMPLATE_AMAZON (template ids - test/apply refuse without them), SHEET_NAME, TEST_SKU, MAX_CHANGES (3000), SAMPLE (12), LISTINGS_CACHE.
-Prints SKUs, template ids, handling times and counts - never a cost."""
+link, Amazon tab = Amazon rows), print the template / handling-time census, write handling_times.csv (the listings with their own handling time) and say
+how many listings would move - writes nothing to OnBuy.
+MODE=test: ONE PUT /v2/listings/by-sku for TEST_SKU carrying the listing's own price and stock plus delivery_template_id (and handling_time 0 when
+CLEAR_HANDLING=1), then a filtered read-back: proves whether the API accepts the field (only that listing changes).
+MODE=apply: batched PUTs (500 per call; the listing's own price and stock, only the template / handling change) for every listing that is off its
+supplier's template or (CLEAR_HANDLING) carries its own handling time, then a read-back of a sample. MAX_CHANGES caps one run.
+Env: TEMPLATE_EBAY, TEMPLATE_AMAZON (template ids - test/apply refuse without them), CLEAR_HANDLING, SHEET_NAME, TEST_SKU, MAX_CHANGES (3000), SAMPLE (12),
+LISTINGS_CACHE. Prints SKUs, template ids, handling times and counts - never a cost."""
 import csv
 import json
 import os
@@ -29,10 +31,12 @@ SHEET_NAME = os.getenv("SHEET_NAME") or "Arden_Full_Feed_Master"
 MODE = (os.getenv("MODE") or "plan").strip().lower()
 TEMPLATE_EBAY = (os.getenv("TEMPLATE_EBAY") or "").strip()
 TEMPLATE_AMAZON = (os.getenv("TEMPLATE_AMAZON") or "").strip()
+CLEAR_HANDLING = (os.getenv("CLEAR_HANDLING") or "").strip().lower() in ("1", "yes", "true")
 TEST_SKU = (os.getenv("TEST_SKU") or "").strip()
 MAX_CHANGES = int(os.getenv("MAX_CHANGES") or "3000")
 SAMPLE = int(os.getenv("SAMPLE") or "12")
 BATCH = 500
+SHEET_SOURCED = ("ebay", "amazon")          # the classes whose supplier we know - the only ones whose handling time may be cleared
 
 
 def classify(url):
@@ -58,8 +62,14 @@ def wanted_template(cls, ebay=TEMPLATE_EBAY, amazon=TEMPLATE_AMAZON):
     return None
 
 
-def plan(listings, classes, ebay=TEMPLATE_EBAY, amazon=TEMPLATE_AMAZON):
-    """-> [(sku, cls, current template, wanted template, price, stock)] for every listing that is off its supplier's template."""
+def own_handling(it):
+    """The listing's own handling time in days, or 0 when it has none (the template decides)."""
+    return num((it or {}).get("handling_time"), int) or 0
+
+
+def plan(listings, classes, ebay=TEMPLATE_EBAY, amazon=TEMPLATE_AMAZON, clear_handling=False):
+    """-> [(sku, cls, current template, wanted template, price, stock, current handling, wanted handling or None)] for every listing that is off its
+    supplier's template or, with clear_handling, carries its own handling time while its supplier is known (sheet-sourced)."""
     out = []
     for it in listings:
         it = it or {}
@@ -69,8 +79,10 @@ def plan(listings, classes, ebay=TEMPLATE_EBAY, amazon=TEMPLATE_AMAZON):
         cls = classes.get(sku, "legacy")
         want = wanted_template(cls, ebay, amazon)
         cur = str(it.get("delivery_template_id") or "").strip()
-        if want and cur != want:
-            out.append((sku, cls, cur, want, it.get("price"), it.get("stock")))
+        cur_h = own_handling(it)
+        want_h = 0 if clear_handling and cls in SHEET_SOURCED and cur_h != 0 else None
+        if (want and cur != want) or want_h is not None:
+            out.append((sku, cls, cur, want or cur, it.get("price"), it.get("stock"), cur_h, want_h))
     return out
 
 
@@ -91,10 +103,18 @@ def census(listings, classes):
     return lines
 
 
-def put_templates(onbuy, items):
-    """One PUT /v2/listings/by-sku for [(sku, price, stock, template)] -> (status, {sku: error text or ''}, raw text)."""
-    payload = {"site_id": onbuy.site_id, "seller_id": onbuy.seller_id,
-               "listings": [{"sku": s, "price": p, "stock": st, "boost_marketing_commission": 0, "delivery_template_id": int(t)} for s, p, st, t in items]}
+def put_listings(onbuy, items):
+    """One PUT /v2/listings/by-sku for [(sku, price, stock, template or None, handling or None)] -> (status, {sku: error text or ''}, raw text).
+    A None template / handling leaves that field out of the request."""
+    listings = []
+    for s, p, st, t, h in items:
+        rec = {"sku": s, "price": p, "stock": st, "boost_marketing_commission": 0}
+        if t:
+            rec["delivery_template_id"] = int(t)
+        if h is not None:
+            rec["handling_time"] = int(h)
+        listings.append(rec)
+    payload = {"site_id": onbuy.site_id, "seller_id": onbuy.seller_id, "listings": listings}
     resp = onbuy._send("PUT", f"{BASE_URL}/listings/by-sku", what=f"onbuy template update({len(items)})", json=payload, timeout=120)
     outcome = {}
     try:
@@ -109,9 +129,12 @@ def put_templates(onbuy, items):
     return resp.status_code, outcome, resp.text[:600]
 
 
+put_templates = put_listings        # the name the first version used
+
+
 def num(v, cast):
     try:
-        return cast(str(v).replace(",", "").strip())
+        return cast(float(str(v).replace(",", "").strip())) if cast is int else cast(str(v).replace(",", "").strip())
     except (TypeError, ValueError):
         return None
 
@@ -144,13 +167,27 @@ def sheet_classes(book):
     return classes
 
 
+def write_handling_csv(listings, classes, path="handling_times.csv"):
+    """The listings that carry their OWN handling time (for review; never changed by the plan)."""
+    own = [it for it in listings if own_handling(it) != 0]
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["sku", "supplier", "handling_time_days", "delivery_template_id", "price", "stock", "created_at", "onbuy_name"])
+        for it in sorted(own, key=lambda i: (-own_handling(i), str(i.get("sku")))):
+            sku = str(it.get("sku") or "").strip()
+            w.writerow([sku, classes.get(sku, "legacy"), it.get("handling_time"), it.get("delivery_template_id"), it.get("price"), it.get("stock"),
+                        str(it.get("created_at") or "")[:10], str(it.get("name") or "")[:90]])
+    return len(own)
+
+
 def main():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
         json.loads(os.environ["GOOGLE_CREDENTIALS"]),
         ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"])
     book = with_retry(lambda: gspread.authorize(creds).open(SHEET_NAME), what="sheet open", max_attempts=3)
     classes = sheet_classes(book)
-    print(f"MODE {MODE} | templates: eBay {TEMPLATE_EBAY or '-'}, Amazon {TEMPLATE_AMAZON or '-'} | sheet SKUs by supplier: {dict(Counter(classes.values()).most_common())}")
+    print(f"MODE {MODE} | templates: eBay {TEMPLATE_EBAY or '-'}, Amazon {TEMPLATE_AMAZON or '-'} | clear own handling time: {'yes' if CLEAR_HANDLING else 'no'} | "
+          f"sheet SKUs by supplier: {dict(Counter(classes.values()).most_common())}")
     onbuy = OnBuyClient()
     if not onbuy.authenticate():
         raise SystemExit("OnBuy auth failed")
@@ -163,17 +200,22 @@ def main():
             raise SystemExit(f"{TEST_SKU}: no listing")
         cls = classes.get(TEST_SKU, "legacy")
         want = wanted_template(cls) or TEMPLATE_EBAY or TEMPLATE_AMAZON
-        print(f"{TEST_SKU}: class {cls} | before: template {before.get('delivery_template_id')} handling {before.get('handling_time')} price {before.get('price')} stock {before.get('stock')} | want {want}")
-        status, outcome, text = put_templates(onbuy, [(TEST_SKU, num(before.get("price"), float), num(before.get("stock"), int) or 0, want)])
+        want_h = 0 if CLEAR_HANDLING else None
+        print(f"{TEST_SKU}: class {cls} | before: template {before.get('delivery_template_id')} handling {before.get('handling_time')} price {before.get('price')} "
+              f"stock {before.get('stock')} | want template {want}, handling {'0' if want_h == 0 else 'unchanged'}")
+        status, outcome, text = put_listings(onbuy, [(TEST_SKU, num(before.get("price"), float), num(before.get("stock"), int) or 0, want, want_h)])
         print(f"PUT -> HTTP {status} | per-SKU answer {outcome} | {text}")
         for wait in (10, 30, 60):
             time.sleep(wait)
             after = onbuy.get_listing(TEST_SKU) or {}
-            print(f"read-back after {wait}s: template {after.get('delivery_template_id')} handling {after.get('handling_time')} price {after.get('price')} stock {after.get('stock')} updated_at {after.get('updated_at')}")
-            if str(after.get("delivery_template_id")) == str(want):
-                print("RESULT: the API accepts delivery_template_id - the template moved")
+            print(f"read-back after {wait}s: template {after.get('delivery_template_id')} handling {after.get('handling_time')} price {after.get('price')} "
+                  f"stock {after.get('stock')} updated_at {after.get('updated_at')}")
+            ok_t = str(after.get("delivery_template_id")) == str(want)
+            ok_h = want_h is None or own_handling(after) == 0
+            if ok_t and ok_h:
+                print("RESULT: the API accepted it - " + ("template and handling time moved" if want_h == 0 else "the template moved"))
                 return
-        print("RESULT: the template did NOT change through the API (field ignored) - the dashboard / a support ticket is the way")
+        print("RESULT: the listing did NOT change through the API (field ignored or refused) - the dashboard / a support ticket is the way")
         return
 
     raw = listings_cache.load() if os.getenv("LISTINGS_CACHE") else None
@@ -185,14 +227,16 @@ def main():
         print(f"shared sweep: {len(listings)} listings")
     for line in census(listings, classes):
         print(line)
-    moves = plan(listings, classes)
-    by = Counter((m[1], m[2] or "none", m[3]) for m in moves)
-    print(f"TO MOVE: {len(moves)} listing(s): " + ", ".join(f"{c} {cur}->{want}: {n}" for (c, cur, want), n in by.most_common()))
+    print(f"listings with their own handling time: {write_handling_csv(listings, classes)} -> handling_times.csv")
+    moves = plan(listings, classes, clear_handling=CLEAR_HANDLING)
+    by = Counter((m[1], m[2] or "none", m[3]) for m in moves if m[2] != m[3])
+    print(f"TO MOVE: {len(moves)} listing(s): " + ", ".join(f"{c} {cur}->{want}: {n}" for (c, cur, want), n in by.most_common())
+          + f" | handling time cleared on {sum(1 for m in moves if m[7] is not None)}")
     with open("delivery_template_plan.csv", "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
-        w.writerow(["sku", "supplier", "current_template", "wanted_template", "stock"])
-        for s, c, cur, want, _p, st in moves:
-            w.writerow([s, c, cur, want, st])
+        w.writerow(["sku", "supplier", "current_template", "wanted_template", "stock", "handling_now", "handling_wanted"])
+        for s, c, cur, want, _p, st, ch, wh in moves:
+            w.writerow([s, c, cur, want, st, ch, "" if wh is None else wh])
     if MODE != "apply":
         print("PLAN ONLY - nothing changed.")
         return
@@ -204,9 +248,9 @@ def main():
     ok = failed = 0
     errors = Counter()
     for c in range(0, len(moves), BATCH):
-        chunk = [(s, num(p, float), num(st, int) or 0, want) for s, _c, _cur, want, p, st in moves[c:c + BATCH] if num(p, float)]
-        status, outcome, text = put_templates(onbuy, chunk)
-        for s, _p, _st, _t in chunk:
+        chunk = [(s, num(p, float), num(st, int) or 0, want, wh) for s, _c, _cur, want, p, st, _ch, wh in moves[c:c + BATCH] if num(p, float)]
+        status, outcome, text = put_listings(onbuy, chunk)
+        for s, _p, _st, _t, _h in chunk:
             err = outcome.get(s, "no answer")
             if err:
                 failed += 1
@@ -219,11 +263,11 @@ def main():
     time.sleep(60)
     sample = moves[:SAMPLE]
     moved = 0
-    for s, _c, _cur, want, _p, _st in sample:
+    for s, _c, _cur, want, _p, _st, _ch, wh in sample:
         after = onbuy.get_listing(s) or {}
-        moved += str(after.get("delivery_template_id")) == str(want)
+        moved += str(after.get("delivery_template_id")) == str(want) and (wh is None or own_handling(after) == 0)
         time.sleep(0.5)
-    print(f"read-back sample: {moved} of {len(sample)} already show the new template (OnBuy applies updates with a delay - re-run MODE=plan later for the full count)")
+    print(f"read-back sample: {moved} of {len(sample)} already show the change (OnBuy applies updates with a delay - re-run MODE=plan later for the full count)")
 
 
 if __name__ == "__main__":
