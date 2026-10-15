@@ -1,0 +1,92 @@
+name: Store Sale (one click on / off)
+
+# User 2026-10-15: "a one click feature ... apply a sale percentage instantly to the whole store and cancel it instantly too" - the dashboard starts a sale
+# at once but takes 1-2 days to end one; through the API both take minutes. mode=plan (default) only shows what would happen; mode=apply puts
+# PERCENT off on every listing (window until sale_end) and records store_sale.json so the nightly guard leaves the sale alone and the nightly refresh
+# keeps new / re-priced listings on it; mode=cancel ends every sale on the account and removes store_sale.json; mode=test tries ONE listing (on, then
+# off, with the timeline). See store_sale.py. The state file is committed by this workflow (github-actions[bot]).
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "plan | test | apply | cancel | refresh"
+        required: false
+        default: "plan"
+      percent:
+        description: "Sale percentage off the listing price (1-90), e.g. 10"
+        required: false
+        default: ""
+      sale_end:
+        description: "Last day of the sale, YYYY-MM-DD (blank = 30 days from today)"
+        required: false
+        default: ""
+      scope:
+        description: "all = every priced listing | in_stock = only listings with stock"
+        required: false
+        default: "all"
+      test_sku:
+        description: "mode=test: the one SKU to try"
+        required: false
+        default: ""
+      max_changes:
+        description: "Refuse when more listings than this would change (0 = no cap)"
+        required: false
+        default: "0"
+
+permissions:
+  contents: write      # apply / cancel commit store_sale.json (the state the nightly guard and refresh read)
+
+concurrency:
+  group: onbuy-api
+  cancel-in-progress: false
+
+jobs:
+  sale:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Store sale
+        env:
+          MODE: ${{ inputs.mode }}
+          PERCENT: ${{ inputs.percent }}
+          SALE_END: ${{ inputs.sale_end }}
+          SCOPE: ${{ inputs.scope }}
+          TEST_SKU: ${{ inputs.test_sku }}
+          MAX_CHANGES: ${{ inputs.max_changes }}
+          ONBUY_USE_SANDBOX: ${{ vars.ONBUY_USE_SANDBOX }}
+          ONBUY_CONSUMER_KEY: ${{ secrets.ONBUY_CONSUMER_KEY }}
+          ONBUY_SECRET_KEY: ${{ secrets.ONBUY_SECRET_KEY }}
+          ONBUY_TEST_CONSUMER_KEY: ${{ secrets.ONBUY_TEST_CONSUMER_KEY }}
+          ONBUY_TEST_SECRET_KEY: ${{ secrets.ONBUY_TEST_SECRET_KEY }}
+          ONBUY_SELLER_ID: ${{ secrets.ONBUY_SELLER_ID }}
+          ONBUY_SITE_ID: ${{ secrets.ONBUY_SITE_ID }}
+        run: python -u store_sale.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: store-sale-plan
+          path: store_sale_plan.csv
+          if-no-files-found: ignore
+      - name: Record the sale state (store_sale.json on = sale running, gone = no sale)
+        if: ${{ !cancelled() && (inputs.mode == 'apply' || inputs.mode == 'cancel') }}
+        run: |
+          if [ -n "$(git status --porcelain -- store_sale.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A -- store_sale.json
+            git commit -m "store sale: ${{ inputs.mode }} (${{ inputs.percent }}% until ${{ inputs.sale_end }})"
+            for i in 1 2 3 4; do
+              git pull --rebase --autostash origin main && git push origin HEAD:main && break
+              sleep 6
+            done
+          else
+            echo "sale state unchanged"
+          fi

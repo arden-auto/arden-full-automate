@@ -213,6 +213,23 @@ jobs:
           ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
         run: python -u sale_guard.py
 
+      # User 2026-10-15: while a one-click store sale is on (store_sale.json), listings created since and listings whose price changed get the sale
+      # recomputed, so the whole store stays at the same percentage. Nothing happens when no sale is on. Shared sweep, no extra reads.
+      - name: Store sale refresh (keep the one-click sale on every listing while it is on)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          MODE: refresh
+          LISTINGS_CACHE: "listings_cache.json"
+          ONBUY_USE_SANDBOX: ${{ vars.ONBUY_USE_SANDBOX }}
+          ONBUY_CONSUMER_KEY: ${{ secrets.ONBUY_CONSUMER_KEY }}
+          ONBUY_SECRET_KEY: ${{ secrets.ONBUY_SECRET_KEY }}
+          ONBUY_TEST_CONSUMER_KEY: ${{ secrets.ONBUY_TEST_CONSUMER_KEY }}
+          ONBUY_TEST_SECRET_KEY: ${{ secrets.ONBUY_TEST_SECRET_KEY }}
+          ONBUY_SELLER_ID: ${{ secrets.ONBUY_SELLER_ID }}
+          ONBUY_SITE_ID: ${{ secrets.ONBUY_SITE_ID }}
+        run: python -u store_sale.py
+
       # User 2026-10-13: every listing on the delivery template of its supplier (eBay rows -> the eBay template, Amazon rows -> the Amazon template,
       # the rest stays on the default). The one-off move was done on 2026-10-13; this keeps the listings created since then right. Shared sweep, no extra reads.
       - name: Delivery templates (new listings onto their supplier's template)
