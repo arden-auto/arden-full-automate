@@ -132,6 +132,12 @@ def put_listings(onbuy, items):
 put_templates = put_listings        # the name the first version used
 
 
+def sendable_moves(moves):
+    """(the moves whose listing has a numeric price - the only ones a PUT can carry, count of the rest)."""
+    sendable = [m for m in moves if num(m[4], float) is not None]
+    return sendable, len(moves) - len(sendable)
+
+
 def num(v, cast):
     try:
         return cast(float(str(v).replace(",", "").strip())) if cast is int else cast(str(v).replace(",", "").strip())
@@ -245,10 +251,16 @@ def main():
         return
     if len(moves) > MAX_CHANGES:
         raise SystemExit(f"{len(moves)} moves exceed MAX_CHANGES={MAX_CHANGES} - refusing")
+    sendable, priceless = sendable_moves(moves)
+    if priceless:
+        print(f"skipped {priceless} listing(s) with no numeric price on OnBuy (a PUT needs a price) - they stay where they are")
+    if not sendable:
+        print("nothing to send")
+        return
     ok = failed = 0
     errors = Counter()
-    for c in range(0, len(moves), BATCH):
-        chunk = [(s, num(p, float), num(st, int) or 0, want, wh) for s, _c, _cur, want, p, st, _ch, wh in moves[c:c + BATCH] if num(p, float)]
+    for c in range(0, len(sendable), BATCH):
+        chunk = [(s, num(p, float), num(st, int) or 0, want, wh) for s, _c, _cur, want, p, st, _ch, wh in sendable[c:c + BATCH]]
         status, outcome, text = put_listings(onbuy, chunk)
         for s, _p, _st, _t, _h in chunk:
             err = outcome.get(s, "no answer")
@@ -261,7 +273,7 @@ def main():
         time.sleep(2)
     print(f"APPLIED: {ok} ok, {failed} failed {dict(errors.most_common(5))}")
     time.sleep(60)
-    sample = moves[:SAMPLE]
+    sample = sendable[:SAMPLE]
     moved = 0
     for s, _c, _cur, want, _p, _st, _ch, wh in sample:
         after = onbuy.get_listing(s) or {}
