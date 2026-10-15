@@ -208,7 +208,7 @@ def plan_apply(listings, percent, start, end, scope="all", costs=None, min_profi
                 if action is None:
                     action = "sale on" if not listing_sweep.has_sale(rec) else "sale changed"
                 items.append(sale_item(sku, sale, start, end))
-        c[action.split(":")[0] if action.startswith("skip") else action] += 1
+        c[action] += 1
         rows.append([sku, rec.get("price"), stock, rec.get("sale_price"), "" if sale is None or action.startswith("skip") else f"{sale:.2f}",
                      "" if not cost else f"{cost[0] + cost[1]:.2f}", "" if not cost else cost[2], "" if floor is None else f"{floor:.2f}", action])
     return items, rows, c

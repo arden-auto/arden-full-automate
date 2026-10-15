@@ -41,11 +41,11 @@ def test_plan_apply_skips_priceless_out_of_stock_under_scope_and_listings_alread
     listings = [rec("A", "10.00"), rec("B", None), rec("C", "20.00", stock=0), rec("D", "10.00", sale="9.00", end="2026-11-01 23:59:59"),
                 rec("E", "10.00", sale="9.50", end="2026-11-01 23:59:59"), rec("", "5")]
     items, rows, c = ss.plan_apply(listings, 10, "2026-10-14 00:00:00", "2026-11-01 23:59:59", scope="in_stock")
-    assert [it["sku"] for it in items] == ["A", "E"] and c == {"sale on": 1, "skip": 2, "already on this sale": 1, "sale changed": 1}
+    assert [it["sku"] for it in items] == ["A", "E"] and c == {"sale on": 1, "skip: no price": 1, "skip: out of stock": 1, "already on this sale": 1, "sale changed": 1}
     assert items[0] == {"sku": "A", "boost_marketing_commission": 0, "sale_price": "9.00", "sale_start_date": "2026-10-14 00:00:00", "sale_end_date": "2026-11-01 23:59:59"}
     assert [r[8] for r in rows] == ["sale on", "skip: no price", "skip: out of stock", "already on this sale", "sale changed"]
     items_all, _, c_all = ss.plan_apply(listings, 10, "2026-10-14 00:00:00", "2026-11-01 23:59:59", scope="all")
-    assert [it["sku"] for it in items_all] == ["A", "C", "E"] and c_all["skip"] == 1
+    assert [it["sku"] for it in items_all] == ["A", "C", "E"] and c_all["skip: no price"] == 1
 
 
 def test_the_margin_floor_keeps_thin_listings_out_or_caps_them_at_the_floor():
@@ -54,7 +54,7 @@ def test_the_margin_floor_keeps_thin_listings_out_or_caps_them_at_the_floor():
     costs = {"A": (12.0, 0.0, 18.0), "C": (12.0, 0.0, 18.0)}
     items, rows, c = ss.plan_apply(listings, 10, "s", "2026-11-01 23:59:59", "all", costs, 10, "skip")
     assert [it["sku"] for it in items] == ["C"] and [r[8] for r in rows] == ["skip: below the margin floor", "skip: no cost on the sheet", "sale on"]
-    assert rows[0][5:8] == ["12.00", 18.0, "16.10"] and rows[1][5:8] == ["", "", ""] and c == {"skip": 2, "sale on": 1}
+    assert rows[0][5:8] == ["12.00", 18.0, "16.10"] and rows[1][5:8] == ["", "", ""] and c == {"skip: below the margin floor": 1, "skip: no cost on the sheet": 1, "sale on": 1}
     items, rows, _ = ss.plan_apply(listings, 10, "s", "2026-11-01 23:59:59", "all", costs, 10, "cap")
     assert [(it["sku"], it["sale_price"]) for it in items] == [("A", "16.10"), ("C", "27.00")] and rows[0][8] == "capped at the floor"
     items, rows, _ = ss.plan_apply(listings, 5, "s", "2026-11-01 23:59:59", "all", costs, 10, "skip")
