@@ -1,5 +1,6 @@
 """store_sale.py - the one-click store sale (user 2026-10-15): PERCENT off every priced listing through PUT /v2/listings/by-sku (sale fields only),
-cancel = the past window, state in store_sale.json which the nightly sale guard respects."""
+cancel = the past window, state in store_sale.json which the nightly sale guard respects, and the margin floor (no sale price under
+(cost + shipping) x (1 + min profit) / (1 - fee))."""
 import json
 import sys
 from datetime import date
@@ -28,28 +29,63 @@ def test_window_starts_yesterday_and_ends_on_the_last_day():
     assert ss.window("", today=date(2026, 10, 15))[1] == "2026-11-14 23:59:59"          # 30 days by default
 
 
+def test_floor_price_is_the_stores_own_price_formula_at_the_minimum_profit():
+    assert ss.floor_price("10", "2", "18", 10) == 16.10                 # 12 x 1.10 / 0.82
+    assert ss.floor_price("12", "", None, 10) == 16.10                  # blank fee = the default 18
+    assert ss.floor_price("50", 0, "8.4", 25) == 68.23                  # 50 x 1.25 / 0.916
+    assert ss.floor_price("", "", "18", 10) is None and ss.floor_price("0", "0", "18", 10) is None
+    assert ss.min_profit_value("10") == 10 and ss.min_profit_value("off") is None and ss.min_profit_value(" OFF ") is None
+
+
 def test_plan_apply_skips_priceless_out_of_stock_under_scope_and_listings_already_on_this_sale():
     listings = [rec("A", "10.00"), rec("B", None), rec("C", "20.00", stock=0), rec("D", "10.00", sale="9.00", end="2026-11-01 23:59:59"),
                 rec("E", "10.00", sale="9.50", end="2026-11-01 23:59:59"), rec("", "5")]
     items, rows, c = ss.plan_apply(listings, 10, "2026-10-14 00:00:00", "2026-11-01 23:59:59", scope="in_stock")
-    assert [it["sku"] for it in items] == ["A", "E"] and c == {"to send": 2, "no price": 1, "out of stock": 1, "already on this sale": 1}
+    assert [it["sku"] for it in items] == ["A", "E"] and c == {"sale on": 1, "skip": 2, "already on this sale": 1, "sale changed": 1}
     assert items[0] == {"sku": "A", "boost_marketing_commission": 0, "sale_price": "9.00", "sale_start_date": "2026-10-14 00:00:00", "sale_end_date": "2026-11-01 23:59:59"}
-    assert [r[5] for r in rows] == ["sale on", "skip: no price", "skip: out of stock", "already on this sale", "sale changed"]
+    assert [r[8] for r in rows] == ["sale on", "skip: no price", "skip: out of stock", "already on this sale", "sale changed"]
     items_all, _, c_all = ss.plan_apply(listings, 10, "2026-10-14 00:00:00", "2026-11-01 23:59:59", scope="all")
-    assert [it["sku"] for it in items_all] == ["A", "C", "E"] and c_all["out of stock"] == 0
+    assert [it["sku"] for it in items_all] == ["A", "C", "E"] and c_all["skip"] == 1
+
+
+def test_the_margin_floor_keeps_thin_listings_out_or_caps_them_at_the_floor():
+    # price 17.45 at cost 12 / fee 18: floor at 10% profit = 16.10; a 10% sale (15.71) is under it, a 5% sale (16.58) is not
+    listings = [rec("A", "17.45"), rec("B", "17.45"), rec("C", "30.00")]
+    costs = {"A": (12.0, 0.0, 18.0), "C": (12.0, 0.0, 18.0)}
+    items, rows, c = ss.plan_apply(listings, 10, "s", "2026-11-01 23:59:59", "all", costs, 10, "skip")
+    assert [it["sku"] for it in items] == ["C"] and [r[8] for r in rows] == ["skip: below the margin floor", "skip: no cost on the sheet", "sale on"]
+    assert rows[0][5:8] == ["12.00", 18.0, "16.10"] and rows[1][5:8] == ["", "", ""] and c == {"skip": 2, "sale on": 1}
+    items, rows, _ = ss.plan_apply(listings, 10, "s", "2026-11-01 23:59:59", "all", costs, 10, "cap")
+    assert [(it["sku"], it["sale_price"]) for it in items] == [("A", "16.10"), ("C", "27.00")] and rows[0][8] == "capped at the floor"
+    items, rows, _ = ss.plan_apply(listings, 5, "s", "2026-11-01 23:59:59", "all", costs, 10, "skip")
+    assert [(it["sku"], it["sale_price"]) for it in items] == [("A", "16.58"), ("C", "28.50")]        # 5% clears the floor
+    # cap never gives less than 1% off: floor 17.40 on a 17.45 price = skipped even in cap mode
+    items, rows, _ = ss.plan_apply([rec("A", "17.45")], 10, "s", "2026-11-01 23:59:59", "all", {"A": (12.97, 0.0, 18.0)}, 10, "cap")
+    assert items == [] and rows[0][8] == "skip: below the margin floor"
+    # floor off (min_profit None) = no cost needed
+    items, _, _ = ss.plan_apply([rec("B", "17.45")], 10, "s", "2026-11-01 23:59:59", "all", costs, None, "skip")
+    assert [it["sku"] for it in items] == ["B"]
+
+
+def test_costs_come_from_the_sheet_columns_with_the_default_fee_for_a_blank_cell():
+    values = [["SKU", "Cost Price (£)", "Shipping Cost (£)", "Fee %"], ["111", "£12.50", "1.00", "18.00"], ["222", "9", "", ""], ["333", "", "2", "18"],
+              ["4,44", "3", "0", "8.4"], ["111", "99", "", ""], ["", "5", "", ""]]
+    assert ss.costs_from_values(values) == {"111": (12.5, 1.0, 18.0), "222": (9.0, 0.0, ss.DEFAULT_FEE_PERCENT), "444": (3.0, 0.0, 8.4)}
+    assert ss.costs_from_values([["SKU", "Title"], ["1", "x"]]) == {} and ss.costs_from_values([]) == {}
 
 
 def test_plan_cancel_ends_every_sale_with_the_past_window():
     items, rows = ss.plan_cancel([rec("A", "10.00", sale="9.00"), rec("B", "10.00"), rec("C", "10.00", sale="0")])
     assert items == [{"sku": "A", "boost_marketing_commission": 0, "sale_price": "9.00", "sale_start_date": sale_guard.PAST_START, "sale_end_date": sale_guard.PAST_END}]
-    assert rows[0][5] == "sale off"
+    assert rows[0][8] == "sale off"
 
 
 def test_state_is_active_until_its_last_day(tmp_path):
     path = tmp_path / "store_sale.json"
-    ss.save_state({"percent": 10, "sale_end_date": "2026-11-01 23:59:59"}, str(path))
+    ss.save_state({"percent": 10, "sale_end_date": "2026-11-01 23:59:59", "min_profit_percent": 10, "floor_mode": "skip"}, str(path))
     state = ss.load_state(str(path))
     assert ss.state_active(state, today=date(2026, 11, 1)) and not ss.state_active(state, today=date(2026, 11, 2)) and not ss.state_active(None)
+    assert state["min_profit_percent"] == 10 and state["floor_mode"] == "skip"
     assert ss.clear_state(str(path)) and ss.load_state(str(path)) is None and not ss.clear_state(str(path))
 
 
@@ -74,10 +110,15 @@ def test_the_sale_guard_leaves_an_active_store_sale_alone(tmp_path):
     assert sale_guard.store_sale_state(str(path), today="2026-11-02") is None                 # expired = the guard ends leftovers again
 
 
-def test_the_workflow_is_plan_by_default_commits_the_state_and_the_nightly_refreshes():
+def test_the_workflow_is_plan_by_default_commits_the_state_and_the_nightly_refreshes_with_the_sheet():
     root = Path(__file__).resolve().parents[1]
     text = (root / ".github" / "workflows" / "store_sale.yml").read_text(encoding="utf-8")
     assert 'default: "plan"' in text and "group: onbuy-api" in text and "contents: write" in text and "python -u store_sale.py" in text
     assert "git add -A -- store_sale.json" in text and "inputs.mode == 'apply' || inputs.mode == 'cancel'" in text
+    assert "MIN_PROFIT_PERCENT: ${{ inputs.min_profit }}" in text and "FLOOR_MODE: ${{ inputs.floor_mode }}" in text and 'default: "10"' in text
+    assert "GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}" in text and "SEMI_SHEET_NAME" in text
     nightly = (root / ".github" / "workflows" / "nightly_reconcile.yml").read_text(encoding="utf-8")
     assert "MODE: refresh" in nightly and nightly.index("python -u sale_guard.py") < nightly.index("python -u store_sale.py")
+    refresh = nightly[nightly.index("MODE: refresh"):nightly.index("python -u store_sale.py")]
+    assert "GOOGLE_CREDENTIALS" in refresh and "SEMI_SHEET_NAME" in refresh
+    assert "__SHEET__" not in Path(root / "store_sale.py").read_text(encoding="utf-8")
