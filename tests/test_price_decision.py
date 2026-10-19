@@ -314,12 +314,12 @@ def test_amazon_rows_re_derive_both_ways():
     assert up["how"] == "amazon" and up["selling_price"] == pricing.price_for_profit(cost, band_of(cost, RULE15), rule=RULE15)
 
 
-AMAZON_COST = 54.99                                                               # the SKU of 2026-10-07: top band (20% then, 25% since 2026-10-09), 15% category
+AMAZON_COST = 54.99                                                               # the SKU of 2026-10-07: top band (20% then, 25% from 2026-10-09, 13% since 2026-10-19), 15% category
 AMAZON_FORMULA = pricing.price_for_profit(AMAZON_COST, band_of(AMAZON_COST, RULE15), rule=RULE15)
 
 
 def test_the_real_amazon_row_prices_at_the_vat_inclusive_fee():
-    assert band_of(AMAZON_COST, RULE15) == 25 and AMAZON_FORMULA == 83.83        # 80.47 at the previous 20% band, 79.03 with the 1.5-point uplift
+    assert band_of(AMAZON_COST, RULE15) == 13 and AMAZON_FORMULA == 75.78        # 83.83 at the 25% band, 80.47 at 20%, 79.03 with the 1.5-point uplift
 
 
 def test_an_amazon_price_a_person_raised_above_the_formula_is_kept():

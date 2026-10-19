@@ -93,11 +93,13 @@ def test_an_amazon_price_raised_by_hand_stays_but_the_automations_own_price_is_e
     assert em.plan_row(by_hand, amazon=True)[0] == "skip"                                      # the user's 2026-10-07 rule: it sticks
     old_schedule = pricing.price_for_profit(30, 40 + 0, platform_fee_percent=pricing.PLATFORM_FEE_PERCENT)     # an automation-set price (same band, so equal)
     assert em.plan_row(decide(amazon=True, **{"Selling Price (£)": f"{old_schedule:.2f}"}), amazon=True)[0] == "ok"
-    # a price the automation set under a SUPERSEDED band (cost > 50: 20% before the 25%) is the sync's own and follows up
+    # a price the automation set under a SUPERSEDED band (cost > 50: 20% until 2026-10-09, 25% until 2026-10-19) is the sync's own and
+    # follows the formula - DOWN to the 13% band now (2026-10-19)
     cost = 60.0
-    at_20 = pricing.price_for_profit(cost, 20, platform_fee_percent=pricing.PLATFORM_FEE_PERCENT)
-    action, _ = em.plan_row(decide(amazon=True, **{"Cost Price (£)": "60", "Selling Price (£)": f"{at_20:.2f}"}), amazon=True)
-    assert action == "raise"
+    for old_pct in (20, 25):
+        at_old = pricing.price_for_profit(cost, old_pct, platform_fee_percent=pricing.PLATFORM_FEE_PERCENT)
+        action, _ = em.plan_row(decide(amazon=True, **{"Cost Price (£)": "60", "Selling Price (£)": f"{at_old:.2f}"}), amazon=True)
+        assert action == "lower"
 
 
 def test_a_row_without_a_cost_or_price_is_skipped():
@@ -106,7 +108,7 @@ def test_a_row_without_a_cost_or_price_is_skipped():
 
 
 def test_the_band_boundaries_pick_the_scheduled_profit():
-    for cost, band in ((3, 100), (7, 80), (30, 40), (80, 25)):
+    for cost, band in ((3, 100), (7, 80), (30, 40), (35, 13), (80, 13)):
         d = decide(**{"Cost Price (£)": str(cost), "Selling Price (£)": "9999"})
         assert d["band_now"] == band
         assert em.new_cells(d, 5)["Profit %"] == f"{band:.2f}"
@@ -118,7 +120,7 @@ def test_new_cells_are_what_the_sync_itself_writes():
     cells = em.new_cells(d, 5)
     price = round(d["formula_price"], 2)
     assert cells["Selling Price (£)"] == price
-    assert cells["Profit %"] == "25.00"
+    assert cells["Profit %"] == "13.00"
     assert cells["Fee %"] == f"{pricing.effective_fee_percent(price, d['rule']):.2f}"
     assert cells["Price Check Flag"] == "Normal"
     assert em.new_cells(d, 0)["Price Check Flag"] == ""                                         # an out-of-stock row carries no flag, like the sync's

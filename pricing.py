@@ -20,8 +20,8 @@ fee assumption into the numbers is retired):
 
   cost + shipping  under GBP 5    -> 100% profit
   cost + shipping  GBP 5 to 10    ->  80% profit
-  cost + shipping  GBP 10 to 50   ->  40% profit
-  cost + shipping  above GBP 50   ->  25% profit
+  cost + shipping  GBP 10 to 30   ->  40% profit
+  cost + shipping  above GBP 30   ->  13% profit   (2026-10-19; until then 40% to 50 and 25% above 50)
 
 Cheap products carried too little absolute profit at a flat markup - a
 GBP 3 item earned pennies after the fee. The ranges apply to the same
@@ -79,22 +79,24 @@ MIN_PROFIT_PERCENT = 20
 # for rows without a category tier and for stores not yet in category mode.
 PLATFORM_FEE_PERCENT = 20  # OnBuy commission - charged on the SELLING price
 
-# The standing profit for the top band (cost + shipping above GBP 50): 25% since 2026-10-09 (user: "increase Makstore and Arden
-# profit from 15 to 25%"). Before it: 20% standing (2026-09-11) and 15% for some days (2026-10-02 .. 10-09, the workflows' default).
-STANDARD_TOP_BAND_PROFIT = 25.0
-# The standing value until 2026-10-09 - superseded, but prices and Profit % cells written under it are still the automation's own.
-PREVIOUS_TOP_BAND_PROFIT = 20.0
-# The value it was moved to for some days (user 2026-10-02 .. 2026-10-09).
-TEMPORARY_TOP_BAND_PROFIT = 15.0
+# The standing profit for the top band: 13% above GBP 30 (cost + shipping) since 2026-10-19 (user: "make the profit percentage to 13% on
+# the products above 30 gbp on Arden and Makstore"). Before it the band started above GBP 50: 25% (2026-10-09 .. 10-19, user: "increase
+# Makstore and Arden profit from 15 to 25%"), 20% standing (2026-09-11) and 15% for some days (2026-10-02 .. 10-09).
+STANDARD_TOP_BAND_PROFIT = 13.0
+TOP_BAND_FROM = 30.0            # the top band starts ABOVE this cost + shipping (50 until 2026-10-19; GBP 10 to 30 inclusive stays at 40%)
+PREVIOUS_TOP_BAND_FROM = 50.0   # where it started until 2026-10-19 - the outgoing schedule is kept recognisable below
+# The top band's earlier values - superseded, but prices and Profit % cells written under them are still the automation's own.
+PREVIOUS_TOP_BAND_PROFIT = 25.0      # 2026-10-09 .. 2026-10-19, above GBP 50
+OLDER_TOP_BAND_PROFIT = 20.0         # standing until 2026-10-09, above GBP 50
+TEMPORARY_TOP_BAND_PROFIT = 15.0     # 2026-10-02 .. 2026-10-09, above GBP 50
 
 
 def _top_band_profit():
-    """The top band's profit %. PROFIT_ABOVE_50_PERCENT (a workflow env, unset =
-    the standing 20) moves it for a limited time WITHOUT a code change (user
-    2026-10-02: 15% for some days, reverted on command): set the value back to
-    20 or delete the env line to restore the schedule. A typo or an absurd
-    value falls back to the standing 20 rather than breaking every run."""
-    raw = (os.getenv("PROFIT_ABOVE_50_PERCENT") or "").strip()
+    """The top band's profit % (above GBP 30 since 2026-10-19). PROFIT_TOP_BAND_PERCENT, or the older name PROFIT_ABOVE_50_PERCENT the
+    workflows still pass (unset = the standing 13), moves it for a limited time WITHOUT a code change (user 2026-10-02: 15% for some
+    days, reverted on command): set the value back or delete the env line to restore the schedule. A typo or an absurd value falls
+    back to the standing value rather than breaking every run."""
+    raw = (os.getenv("PROFIT_TOP_BAND_PERCENT") or os.getenv("PROFIT_ABOVE_50_PERCENT") or "").strip()
     try:
         value = float(raw) if raw else STANDARD_TOP_BAND_PROFIT
     except ValueError:
@@ -109,8 +111,8 @@ TOP_BAND_PROFIT = _top_band_profit()
 PROFIT_BANDS = (
     (5.0, 100),    # under GBP 5 (80% -> 100%, 2026-09-11)
     (10.0, 80),    # GBP 5-10 inclusive (2026-09-11 schedule)
-    (50.0, 40),    # over GBP 10 up to 50 inclusive (2026-09-11 schedule)
-    (None, TOP_BAND_PROFIT),    # above GBP 50: 25% standing (2026-10-09; was 20%, 15% for some days from 2026-10-02)
+    (TOP_BAND_FROM, 40),        # over GBP 10 up to 30 inclusive (2026-09-11 schedule; the range ended at 50 until 2026-10-19)
+    (None, TOP_BAND_PROFIT),    # above GBP 30: 13% standing (2026-10-19; above 50 before: 25% from 2026-10-09, 20%, 15% for some days)
 )
 
 
@@ -143,15 +145,15 @@ _SUPERSEDED_PROFIT_BANDS = (
     # same day by the full range rewrite
     ((5.0, 80), (10.0, 80), (30.0, 40), (100.0, 40), (None, 25)),
 ) + (
-    # The top band's earlier values - the previous standing 20 and the temporary 15 - are BOTH superseded whichever value
-    # is live (legacy_profit_percents drops the live one), so a price the automation set at either is still its own
-    # (it follows the formula - UP to the 25 now, down again if the band is ever lowered) and a Profit % cell it wrote under
-    # either must not turn into a manual override: the 15.00 and 20.00 cells of the top-band rows move to 25 with their prices.
-    ((5.0, 100), (10.0, 80), (50.0, 40), (None, PREVIOUS_TOP_BAND_PROFIT)),
-    ((5.0, 100), (10.0, 80), (50.0, 40), (None, TEMPORARY_TOP_BAND_PROFIT)),
-    # ...and the standing 25 itself, so that a temporary move of the band (PROFIT_ABOVE_50_PERCENT) later still recognises the
-    # prices and Profit % cells written at 25 (legacy_profit_percents never lists the value that is live).
-    ((5.0, 100), (10.0, 80), (50.0, 40), (None, STANDARD_TOP_BAND_PROFIT)),
+    # The schedules that started the top band above GBP 50 (until 2026-10-19) at 25 / 20 / 15, all superseded whichever value is live
+    # (legacy_profit_percents drops the live one): a price the automation set under any of them - 40% for GBP 30-50, 25/20/15 above - is
+    # still its own (it follows the formula DOWN to the 13 now) and a Profit % cell it wrote under them must not turn into a manual override.
+    ((5.0, 100), (10.0, 80), (PREVIOUS_TOP_BAND_FROM, 40), (None, PREVIOUS_TOP_BAND_PROFIT)),
+    ((5.0, 100), (10.0, 80), (PREVIOUS_TOP_BAND_FROM, 40), (None, OLDER_TOP_BAND_PROFIT)),
+    ((5.0, 100), (10.0, 80), (PREVIOUS_TOP_BAND_FROM, 40), (None, TEMPORARY_TOP_BAND_PROFIT)),
+    # ...and the standing 13 itself, so that a temporary move of the band (PROFIT_ABOVE_50_PERCENT) later still recognises the
+    # prices and Profit % cells written at 13 (legacy_profit_percents never lists the value that is live).
+    ((5.0, 100), (10.0, 80), (TOP_BAND_FROM, 40), (None, STANDARD_TOP_BAND_PROFIT)),
 )
 
 
