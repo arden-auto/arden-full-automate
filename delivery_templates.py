@@ -133,8 +133,9 @@ put_templates = put_listings        # the name the first version used
 
 
 def sendable_moves(moves):
-    """(the moves whose listing has a numeric price - the only ones a PUT can carry, count of the rest)."""
-    sendable = [m for m in moves if num(m[4], float) is not None]
+    """(the moves whose listing has a price above zero - the only ones a PUT can carry, count of the rest). A listing at 0.00 is one OnBuy never put
+    live: the by-SKU endpoint answers "SKU does not exist" for it (2026-10-15), so it is set aside instead of failing every night."""
+    sendable = [m for m in moves if (num(m[4], float) or 0) > 0]
     return sendable, len(moves) - len(sendable)
 
 
@@ -253,7 +254,7 @@ def main():
         raise SystemExit(f"{len(moves)} moves exceed MAX_CHANGES={MAX_CHANGES} - refusing")
     sendable, priceless = sendable_moves(moves)
     if priceless:
-        print(f"skipped {priceless} listing(s) with no numeric price on OnBuy (a PUT needs a price) - they stay where they are")
+        print(f"skipped {priceless} listing(s) with no price above zero on OnBuy (never-live listings; a PUT needs a price) - they stay where they are")
     if not sendable:
         print("nothing to send")
         return

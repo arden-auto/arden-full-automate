@@ -93,7 +93,7 @@ def test_moves_without_a_numeric_price_are_set_aside_before_batching():
     listings = [listing("E1", 22069), listing("E2", 22069, price=None), listing("E3", 22069, price=""), listing("E4", 22069, price="0")]
     moves = dt.plan(listings, {s: "ebay" for s in ("E1", "E2", "E3", "E4")}, "35109", "22069")
     sendable, priceless = dt.sendable_moves(moves)
-    assert [m[0] for m in sendable] == ["E1", "E4"] and priceless == 2          # "0" is numeric (OnBuy keeps it); None / blank are not
+    assert [m[0] for m in sendable] == ["E1"] and priceless == 3                # 0.00 = a never-live listing the PUT refuses; None / blank likewise
     assert dt.sendable_moves([]) == ([], 0)
 
 
