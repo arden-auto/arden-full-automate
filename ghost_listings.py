@@ -24,7 +24,7 @@ SKUS_FILE = (os.getenv("SKUS_FILE") or "cleanup/ghost_listings_2026-10-15.txt").
 LOOKUPS = int(os.getenv("LOOKUPS") or "15")
 OUT = "ghost_listings.csv"
 FIELDS = ["sku", "opc", "product_listing_id", "name", "price", "stock", "sale_price", "created_at", "updated_at", "delivery_template_id", "product_url",
-          "in_sweep", "by_sku_lookup", "sheet_tab", "sheet_row", "sync_status", "sheet_stock", "sheet_title"]
+          "in_sweep", "by_sku_lookup", "sheet_tab", "sheet_row", "sync_status", "sheet_stock", "sheet_price", "sheet_title"]
 
 
 def read_skus(path):
@@ -38,7 +38,7 @@ def read_skus(path):
 
 
 def sheet_index(book):
-    """{sku: (tab, row, sync status, stock, title)} over the product tabs."""
+    """{sku: (tab, row, sync status, stock, title, selling price)} over the product tabs."""
     idx = {}
     tabs = [sheet_tabs.product_sheet(book)]
     try:
@@ -52,25 +52,25 @@ def sheet_index(book):
         if not values:
             continue
         h = [str(x).strip() for x in values[0]]
-        col = {k: h.index(k) for k in ("SKU", "Sync Status", "Stock", "Title") if k in h}
+        col = {k: h.index(k) for k in ("SKU", "Sync Status", "Stock", "Title", "Selling Price (£)") if k in h}
         if "SKU" not in col:
             continue
         for n, r in enumerate(values[1:], start=2):
             cell = lambda k: (str(r[col[k]]).strip() if k in col and col[k] < len(r) else "")   # noqa: E731
             sku = cell("SKU").replace(",", "")
             if sku and sku not in idx:
-                idx[sku] = (ws.title, n, cell("Sync Status")[:60], cell("Stock"), cell("Title")[:90])
+                idx[sku] = (ws.title, n, cell("Sync Status")[:60], cell("Stock"), cell("Title")[:90], cell("Selling Price (£)"))
     return idx
 
 
 def row_for(sku, rec, sheet, lookup):
     rec = rec or {}
-    tab, row, sync, stock, title = sheet.get(sku, ("", "", "", "", ""))
+    tab, row, sync, stock, title, sprice = sheet.get(sku, ("", "", "", "", "", ""))
     return {"sku": sku, "opc": rec.get("opc", ""), "product_listing_id": rec.get("product_listing_id", ""), "name": str(rec.get("name") or "")[:120],
             "price": rec.get("price", ""), "stock": rec.get("stock", ""), "sale_price": rec.get("sale_price", ""), "created_at": rec.get("created_at", ""),
             "updated_at": rec.get("updated_at", ""), "delivery_template_id": rec.get("delivery_template_id", ""), "product_url": rec.get("product_url", ""),
             "in_sweep": "yes" if rec else "no", "by_sku_lookup": lookup, "sheet_tab": tab, "sheet_row": row, "sync_status": sync, "sheet_stock": stock,
-            "sheet_title": title}
+            "sheet_price": sprice, "sheet_title": title}
 
 
 def main():
