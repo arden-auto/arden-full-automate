@@ -75,11 +75,11 @@ def test_category_mode_without_tables_falls_back(monkeypatch, tmp_path):
 
 def test_flat_rule_prices_like_a_divisor():
     elec = pricing.FeeRule("Consumer Electronics", 7)
-    # GBP 20 cost -> 40% profit band -> retain 28.00; OnBuy adds 20% VAT to its
-    # commission (2026-10-07), so the nominal 7% really takes 8.4% -> 28 / 0.916
-    assert pricing.calculate_selling_price(20.0, fee_rule=elec) == 30.57
-    assert pricing.calculate_selling_price(20.0) == 36.84         # flat 20 -> 24 -> /0.76
-    assert abs(pricing.effective_fee_percent(30.57, elec) - 8.4) < 0.01
+    # GBP 20 cost -> 20% profit (flat since 2026-10-22; 40% before) -> retain 24.00; OnBuy adds 20% VAT to its
+    # commission (2026-10-07), so the nominal 7% really takes 8.4% -> 24 / 0.916
+    assert pricing.calculate_selling_price(20.0, fee_rule=elec) == 26.20
+    assert pricing.calculate_selling_price(20.0) == 31.58         # flat 20 -> 24 -> /0.76
+    assert abs(pricing.effective_fee_percent(26.20, elec) - 8.4) < 0.01
 
 
 def test_tiered_rule_marginal():

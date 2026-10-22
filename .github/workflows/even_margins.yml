@@ -44,7 +44,7 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           FEE_MODE: ${{ vars.FEE_MODE }}
           FEE_TIER_MODE: ${{ vars.FEE_TIER_MODE }}
-          PROFIT_ABOVE_50_PERCENT: ${{ vars.PROFIT_ABOVE_50_PERCENT || '13' }}
+          PROFIT_ABOVE_50_PERCENT: ${{ vars.PROFIT_ABOVE_50_PERCENT || '20' }}
           APPLY: ${{ inputs.apply }}
           TABS: ${{ inputs.tabs }}
           OUTLIER_RATIO: ${{ inputs.outlier_ratio }}

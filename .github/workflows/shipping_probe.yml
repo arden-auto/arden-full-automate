@@ -30,6 +30,6 @@ jobs:
           EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
           FEE_MODE: ${{ vars.FEE_MODE }}
           FEE_TIER_MODE: ${{ vars.FEE_TIER_MODE }}
-          PROFIT_ABOVE_50_PERCENT: ${{ vars.PROFIT_ABOVE_50_PERCENT || '13' }}
+          PROFIT_ABOVE_50_PERCENT: ${{ vars.PROFIT_ABOVE_50_PERCENT || '20' }}
           SAMPLE: ${{ inputs.sample }}
         run: python shipping_probe.py

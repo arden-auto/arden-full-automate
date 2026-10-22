@@ -219,21 +219,21 @@ def test_a_zero_profit_cell_never_prices_a_row_at_no_profit_on_the_amazon_tab_ei
 
 
 def test_a_price_is_only_released_by_the_profit_that_explains_it():
-    # a row with a real profit override (20, below the band's 40): a price set at the BAND's profit is not explained
+    # a row with a real profit override (10, below the band's 20): a price set at the BAND's profit is not explained
     # by it, so it is not released down to the override's lower price - it stays as it was
     cost = 20.0
     band = band_of(cost, RULE7)
-    assert band > 20
+    assert band > 10
     cell = shown_legacy(pricing.price_for_profit(cost, band, rule=RULE7, legacy=True), RULE7)
     at_band = misread_price(cost, band, cell)
-    kept = decide(cost, RULE7, at_band, cell, "20", prev={"Cost Price (£)": cost, "Profit %": "40", "Fee %": "8"})
-    assert kept["profit_override"] == 20.0 and kept["misread"] is False
+    kept = decide(cost, RULE7, at_band, cell, "10", prev={"Cost Price (£)": cost, "Profit %": "40", "Fee %": "8"})
+    assert kept["profit_override"] == 10.0 and kept["misread"] is False
     assert kept["how"] == "kept" and kept["selling_price"] == at_band
     # ...while a price set at the override's own profit follows the corrected fee down (no more than the fee effect)
-    at_override = pricing.price_for_profit(cost, 20, platform_fee_percent=float(cell), legacy=True)
-    moved = decide(cost, RULE7, at_override, cell, "20", prev={"Cost Price (£)": cost, "Profit %": "40", "Fee %": "8"})
+    at_override = pricing.price_for_profit(cost, 10, platform_fee_percent=float(cell), legacy=True)
+    moved = decide(cost, RULE7, at_override, cell, "10", prev={"Cost Price (£)": cost, "Profit %": "40", "Fee %": "8"})
     assert moved["misread"] is True and moved["how"] == "follows"
-    assert moved["selling_price"] == pricing.price_for_profit(cost, 20, rule=RULE7)
+    assert moved["selling_price"] == pricing.price_for_profit(cost, 10, rule=RULE7)
     assert moved["selling_price"] > 0.97 * at_override
 
 
@@ -319,7 +319,7 @@ AMAZON_FORMULA = pricing.price_for_profit(AMAZON_COST, band_of(AMAZON_COST, RULE
 
 
 def test_the_real_amazon_row_prices_at_the_vat_inclusive_fee():
-    assert band_of(AMAZON_COST, RULE15) == 13 and AMAZON_FORMULA == 75.78        # 83.83 at the 25% band, 80.47 at 20%, 79.03 with the 1.5-point uplift
+    assert band_of(AMAZON_COST, RULE15) == 20 and AMAZON_FORMULA == 80.47        # flat 20 since 2026-10-22 (75.78 at 13%, 83.83 at 25%, 79.03 with the 1.5-point uplift)
 
 
 def test_an_amazon_price_a_person_raised_above_the_formula_is_kept():
@@ -391,9 +391,9 @@ def test_an_amazon_price_set_before_a_recategorisation_is_still_the_automations_
 def test_an_amazon_price_set_under_a_typed_profit_override_that_was_cleared_is_taken_for_a_persons():
     # the known limit, stated: nothing records that an override once explained the price
     cost = 20.0
-    at_30 = pricing.price_for_profit(cost, 30, rule=RULE15)
+    at_30 = pricing.price_for_profit(cost, 10, rule=RULE15)                      # a typed 10 (below the flat 20; 30 below the 40 of old)
     assert at_30 < pricing.price_for_profit(cost, band_of(cost, RULE15), rule=RULE15)
-    d = decide(cost, RULE15, at_30 + 10.0, shown(at_30, RULE15), "", supplier="Amazon", prev={"Cost Price (£)": cost})
+    d = decide(cost, RULE15, at_30 + 15.0, shown(at_30, RULE15), "", supplier="Amazon", prev={"Cost Price (£)": cost})   # +15: clear of every band price
     assert d["how"] == "manual"
 
 

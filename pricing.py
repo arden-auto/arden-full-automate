@@ -82,7 +82,9 @@ PLATFORM_FEE_PERCENT = 20  # OnBuy commission - charged on the SELLING price
 # The standing profit for the top band: 13% above GBP 30 (cost + shipping) since 2026-10-19 (user: "make the profit percentage to 13% on
 # the products above 30 gbp on Arden and Makstore"). Before it the band started above GBP 50: 25% (2026-10-09 .. 10-19, user: "increase
 # Makstore and Arden profit from 15 to 25%"), 20% standing (2026-09-11) and 15% for some days (2026-10-02 .. 10-09).
-STANDARD_TOP_BAND_PROFIT = 13.0
+STANDARD_TOP_BAND_PROFIT = 20.0        # 2026-10-22: a flat 20% on every band (user: "profit margin 20% on all products")
+PREVIOUS_STANDARD_TOP_BAND_PROFIT = 13.0   # 2026-10-19 .. 2026-10-22, above GBP 30
+FLAT_PROFIT = 20.0                     # 2026-10-22: the cost bands below the top band, all at 20 (100 / 80 / 40 before)
 TOP_BAND_FROM = 30.0            # the top band starts ABOVE this cost + shipping (50 until 2026-10-19; GBP 10 to 30 inclusive stays at 40%)
 PREVIOUS_TOP_BAND_FROM = 50.0   # where it started until 2026-10-19 - the outgoing schedule is kept recognisable below
 # The top band's earlier values - superseded, but prices and Profit % cells written under them are still the automation's own.
@@ -109,10 +111,10 @@ TOP_BAND_PROFIT = _top_band_profit()
 # (upper cost bound inclusive, PROFIT %) - checked in order; None = no
 # bound. Each line traces to the policy decision that set it.
 PROFIT_BANDS = (
-    (5.0, 100),    # under GBP 5 (80% -> 100%, 2026-09-11)
-    (10.0, 80),    # GBP 5-10 inclusive (2026-09-11 schedule)
-    (TOP_BAND_FROM, 40),        # over GBP 10 up to 30 inclusive (2026-09-11 schedule; the range ended at 50 until 2026-10-19)
-    (None, TOP_BAND_PROFIT),    # above GBP 30: 13% standing (2026-10-19; above 50 before: 25% from 2026-10-09, 20%, 15% for some days)
+    (5.0, FLAT_PROFIT),         # under GBP 5: 20 since 2026-10-22 (100 from 2026-09-11, 80 before)
+    (10.0, FLAT_PROFIT),        # GBP 5-10 inclusive: 20 since 2026-10-22 (80 before)
+    (TOP_BAND_FROM, FLAT_PROFIT),   # over GBP 10 up to 30 inclusive: 20 since 2026-10-22 (40 before; the range ended at 50 until 2026-10-19)
+    (None, TOP_BAND_PROFIT),    # above GBP 30: 20 standing (2026-10-22; 13 from 2026-10-19; above 50 before: 25 from 2026-10-09, 20, 15)
 )
 
 
@@ -151,9 +153,12 @@ _SUPERSEDED_PROFIT_BANDS = (
     ((5.0, 100), (10.0, 80), (PREVIOUS_TOP_BAND_FROM, 40), (None, PREVIOUS_TOP_BAND_PROFIT)),
     ((5.0, 100), (10.0, 80), (PREVIOUS_TOP_BAND_FROM, 40), (None, OLDER_TOP_BAND_PROFIT)),
     ((5.0, 100), (10.0, 80), (PREVIOUS_TOP_BAND_FROM, 40), (None, TEMPORARY_TOP_BAND_PROFIT)),
-    # ...and the standing 13 itself, so that a temporary move of the band (PROFIT_ABOVE_50_PERCENT) later still recognises the
-    # prices and Profit % cells written at 13 (legacy_profit_percents never lists the value that is live).
-    ((5.0, 100), (10.0, 80), (TOP_BAND_FROM, 40), (None, STANDARD_TOP_BAND_PROFIT)),
+    # ...the 2026-10-19 schedule (100 / 80 / 40 with 13 above GBP 30), outgoing since 2026-10-22: its prices follow the formula
+    # down (below GBP 30) or up (above) to the flat 20, and a Profit % cell it wrote is not a manual override.
+    ((5.0, 100), (10.0, 80), (TOP_BAND_FROM, 40), (None, PREVIOUS_STANDARD_TOP_BAND_PROFIT)),
+    # ...and the standing flat 20 itself (2026-10-22), so that a temporary move of the top band later still recognises the prices and
+    # Profit % cells written at 20 (legacy_profit_percents never lists the value that is live).
+    ((5.0, FLAT_PROFIT), (10.0, FLAT_PROFIT), (TOP_BAND_FROM, FLAT_PROFIT), (None, STANDARD_TOP_BAND_PROFIT)),
 )
 
 
