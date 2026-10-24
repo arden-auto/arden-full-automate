@@ -8,3 +8,6 @@
 276340782368  # Sheet1 row 5293: row = 3PCS Solar Power Dummy Security Camera Fake L | page = 4x Solar Powered PIR Motion Sensor Lamp Clip
 # 2026-10-15 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
 # 2026-10-21 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
+
+# 2026-10-24 supplier out of stock (user report, 2 orders) - keep at 0 until the Keepa offer rule is fixed; release = delete this line here and in protected_skus.txt
+0000049897678-Messam
