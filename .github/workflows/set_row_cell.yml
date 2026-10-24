@@ -16,6 +16,10 @@ on:
         description: "Safety: the SKU that row must hold - aborts if it differs"
         required: false
         default: ""
+      tab:
+        description: "Worksheet name (blank = the first tab; Amazon = the Amazon tab)"
+        required: false
+        default: ""
       dry_run:
         description: "yes = show the change without writing"
         required: false
@@ -41,6 +45,7 @@ jobs:
       - name: Set cell
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SHEET_TAB: ${{ inputs.tab }}
           ROW: ${{ inputs.row }}
           COLUMN: ${{ inputs.column }}
           VALUE: ${{ inputs.value }}

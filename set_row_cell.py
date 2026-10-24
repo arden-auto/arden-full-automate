@@ -2,17 +2,16 @@
 
 For the small data faults that stop a row dead and that no amount of
 retrying can clear - a category leaf that does not exist in OnBuy's tree,
-a brand spelled in a way their matcher chokes on. These fail the whole
-nightly sync (it exits non-zero and emails an alert), so they are worth
-fixing precisely rather than waiting for a bulk pass.
+a brand spelled in a way their matcher chokes on, a category the matcher
+got wrong. Addressed BY ROW NUMBER with the expected SKU as a guard: row
+numbers move whenever the team inserts or deletes, so writing to a row
+number alone risks correcting the wrong product's cell. If the SKU on that
+row is not the one the caller expects, nothing is written.
 
-Addressed BY ROW NUMBER with the expected SKU as a guard: row numbers
-move whenever the team inserts or deletes, so writing to a row number
-alone risks correcting the wrong product's cell. If the SKU on that row
-is not the one the caller expects, nothing is written.
-
-Prints the old and new value and refuses a no-op, so the run log is the
-audit trail. Touches no other column and no OnBuy API.
+SHEET_TAB picks the worksheet (blank = the first tab, "Amazon" = the
+Amazon tab). Prints the old and new value and refuses a no-op, so the run
+log is the audit trail. Touches no other column and no OnBuy API.
+(Tab support ported back from GTV 2026-10-24.)
 """
 import json
 import os
@@ -21,6 +20,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 SHEET_NAME = os.getenv("SHEET_NAME") or "Arden_Full_Feed_Master"
+SHEET_TAB = (os.getenv("SHEET_TAB") or "").strip()
 ROW = int(os.getenv("ROW") or "0")
 EXPECT_SKU = (os.getenv("EXPECT_SKU") or "").strip()
 COLUMN = (os.getenv("COLUMN") or "").strip()
@@ -44,7 +44,9 @@ def main():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
         creds_dict, ["https://spreadsheets.google.com/feeds",
                      "https://www.googleapis.com/auth/drive"])
-    sheet = gspread.authorize(creds).open(SHEET_NAME).sheet1
+    book = gspread.authorize(creds).open(SHEET_NAME)
+    sheet = book.worksheet(SHEET_TAB) if SHEET_TAB else book.sheet1
+    print(f"worksheet: {sheet.title}")
     values = sheet.get_all_values()
     headers = [str(h).strip() for h in values[0]]
     col_map = {h: i for i, h in enumerate(headers)}
@@ -60,7 +62,7 @@ def main():
         i = col_map.get(name)
         return (row[i] if i is not None and i < len(row) else "").strip()
 
-    sku, title = cell("SKU"), cell("Title")
+    sku, title = cell("SKU").replace(",", ""), cell("Title")
     print(f"row {ROW}: SKU {sku!r} | title {title[:64]!r}")
     if EXPECT_SKU and sku != EXPECT_SKU:
         raise SystemExit(f"ABORT: expected SKU {EXPECT_SKU!r}, found {sku!r} - rows have moved")
