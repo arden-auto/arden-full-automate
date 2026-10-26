@@ -1,5 +1,6 @@
 """delivery_templates.py - every listing on the delivery template of its supplier (user 2026-10-13): eBay rows -> the eBay template, Amazon rows -> the Amazon
 template, everything else (legacy / AliExpress catalogue) stays where it is; with CLEAR_HANDLING a sheet-sourced listing's own handling time is taken off."""
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -101,3 +102,11 @@ def test_the_workflow_is_plan_by_default_and_serialised_with_the_other_onbuy_job
     text = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "delivery_templates.yml").read_text(encoding="utf-8")
     assert "group: onbuy-api" in text and 'default: "plan"' in text and "python -u delivery_templates.py" in text
     assert "CLEAR_HANDLING: ${{ inputs.clear_handling }}" in text
+
+
+def test_a_manual_run_takes_the_template_ids_from_its_inputs_then_the_variables_then_the_nightly_fallback():
+    text = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "delivery_templates.yml").read_text(encoding="utf-8")
+    assert "TEMPLATE_EBAY: ${{ inputs.template_ebay || vars.DELIVERY_TEMPLATE_EBAY || '54810' }}" in text
+    assert "TEMPLATE_AMAZON: ${{ inputs.template_amazon || vars.DELIVERY_TEMPLATE_AMAZON || '54809' }}" in text
+    for key in ("template_ebay", "template_amazon"):
+        assert re.search(r"      %s:\n        description: [^\n]*\n        required: false\n        default: \"\"" % key, text), key        # an empty default lets the variable apply

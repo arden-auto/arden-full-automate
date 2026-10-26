@@ -12,13 +12,13 @@ on:
         required: false
         default: "plan"
       template_ebay:
-        description: "Delivery template id for eBay-sourced listings"
+        description: "Delivery template id for eBay-sourced listings (empty = the DELIVERY_TEMPLATE_EBAY variable, else 54810)"
         required: false
-        default: "54810"
+        default: ""
       template_amazon:
-        description: "Delivery template id for Amazon-sourced listings"
+        description: "Delivery template id for Amazon-sourced listings (empty = the DELIVERY_TEMPLATE_AMAZON variable, else 54809)"
         required: false
-        default: "54809"
+        default: ""
       test_sku:
         description: "mode=test: the one SKU to move"
         required: false
@@ -51,8 +51,8 @@ jobs:
       - name: Delivery templates
         env:
           MODE: ${{ inputs.mode }}
-          TEMPLATE_EBAY: ${{ inputs.template_ebay }}
-          TEMPLATE_AMAZON: ${{ inputs.template_amazon }}
+          TEMPLATE_EBAY: ${{ inputs.template_ebay || vars.DELIVERY_TEMPLATE_EBAY || '54810' }}
+          TEMPLATE_AMAZON: ${{ inputs.template_amazon || vars.DELIVERY_TEMPLATE_AMAZON || '54809' }}
           TEST_SKU: ${{ inputs.test_sku }}
           MAX_CHANGES: ${{ inputs.max_changes }}
           CLEAR_HANDLING: ${{ inputs.clear_handling }}
