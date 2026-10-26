@@ -8,6 +8,8 @@ name: Store Sale (one click on / off)
 # price never leaves less than min_profit % profit on cost + shipping after OnBuy's fee (the stores' own price formula); a listing under its floor is
 # left out (skip) or put on sale at the floor (cap); a listing with no cost on the sheets is left out. See store_sale.py. The state file is committed
 # by this workflow (github-actions[bot]).
+# GTV (user 2026-10-26: "Apply 3% sale on all GTV products except the 10-20 gbp range products"): exclude_price_from / exclude_price_to keep every listing
+# priced in that range (both ends included) out of the sale; the range is stored in store_sale.json for the nightly refresh (inside the backfill).
 
 on:
   workflow_dispatch:
@@ -36,6 +38,18 @@ on:
         description: "all = every priced listing | in_stock = only listings with stock"
         required: false
         default: "all"
+      price_ranges:
+        description: "Sale % per price range, e.g. 0-9.99:5; 20-:3 (GBP, both ends included, first match wins, 0 = keep that range out, empty bound = open). Empty = percent for every listing"
+        required: false
+        default: ""
+      exclude_price_from:
+        description: "Keep listings priced from this amount (GBP, both ends included) out of the sale, e.g. 10; blank = no exclusion"
+        required: false
+        default: ""
+      exclude_price_to:
+        description: "... up to this amount (GBP, included), e.g. 20"
+        required: false
+        default: ""
       test_sku:
         description: "mode=test: the one SKU to try"
         required: false
@@ -72,6 +86,9 @@ jobs:
           MIN_PROFIT_PERCENT: ${{ inputs.min_profit }}
           FLOOR_MODE: ${{ inputs.floor_mode }}
           SCOPE: ${{ inputs.scope }}
+          PRICE_RANGES: ${{ inputs.price_ranges }}
+          EXCLUDE_PRICE_FROM: ${{ inputs.exclude_price_from }}
+          EXCLUDE_PRICE_TO: ${{ inputs.exclude_price_to }}
           TEST_SKU: ${{ inputs.test_sku }}
           MAX_CHANGES: ${{ inputs.max_changes }}
           SHEET_NAME: ${{ vars.SHEET_NAME || 'Arden_Full_Feed_Master' }}
@@ -97,8 +114,10 @@ jobs:
           if [ -n "$(git status --porcelain -- store_sale.json)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            desc="cancelled"
+            if [ -f store_sale.json ]; then desc=$(python -c "import json; d = json.load(open('store_sale.json')); print((d.get('summary') or '') + ' until ' + str(d.get('sale_end_date'))[:10])"); fi
             git add -A -- store_sale.json
-            git commit -m "store sale: ${{ inputs.mode }} (${{ inputs.percent }}% until ${{ inputs.sale_end }}, floor ${{ inputs.min_profit }}% ${{ inputs.floor_mode }})"
+            git commit -m "store sale: ${{ inputs.mode }} - ${desc}"
             for i in 1 2 3 4; do
               git pull --rebase --autostash origin main && git push origin HEAD:main && break
               sleep 6

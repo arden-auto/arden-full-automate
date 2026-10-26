@@ -286,7 +286,8 @@ def main():
     print(f"sale guard: {len(on_sale)} of {len(listings)} listings carry a sale price", flush=True)
     state = store_sale_state()
     if state:
-        print(f"sale guard: STORE SALE ACTIVE - {state.get('percent')}% off until {str(state.get('sale_end_date'))[:10]} (store_sale.json, the user's "
+        what = state.get("summary") or f"{state.get('percent')}% off"
+        print(f"sale guard: STORE SALE ACTIVE - {what} until {str(state.get('sale_end_date'))[:10]} (store_sale.json, the user's "
               f"one-click sale): sales are expected, the guard ends nothing this run", flush=True)
         return
     for line in describe(on_sale) if on_sale else []:
