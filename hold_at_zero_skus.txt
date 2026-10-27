@@ -11,5 +11,5 @@
 
 # 2026-10-24 supplier out of stock (user report, 2 orders) - keep at 0 until the Keepa offer rule is fixed; release = delete this line here and in protected_skus.txt
 0000049897678-Messam
-# 2026-10-27 frozen from the dashboard: wrong price: Amazon does not sell it, cost came from the cheapest third-party offer (GBP 13.48), order T6QWZ2J - release only after the page or the row is fixed
+# 2026-10-27 frozen from the dashboard: wrong price: Amazon does not sell it, its cost was taken from an offer Amazon cannot ship, order T6QWZ2J - release only after the page or the row is fixed
 0000069168437 -Messam  # wrong price: Amazon does not sell it, cost came from the che
