@@ -200,11 +200,14 @@ class OnBuyClient:
 
         return with_retry(_do_create, what=f"onbuy create_product({sku})", max_attempts=3)
 
-    def update_listing(self, *, sku, price, stock):
+    def update_listing(self, *, sku, price, stock, delivery_template_id=None):
+        record = {"sku": sku, "price": price, "stock": stock, "boost_marketing_commission": 0}
+        if delivery_template_id:
+            record["delivery_template_id"] = int(delivery_template_id)      # the supplier's template rides the same PUT (user 2026-10-30: set it at creation, not later)
         payload = {
             "site_id": self.site_id,
             "seller_id": self.seller_id,
-            "listings": [{"sku": sku, "price": price, "stock": stock, "boost_marketing_commission": 0}],
+            "listings": [record],
         }
 
         def _do_update():
@@ -222,15 +225,21 @@ class OnBuyClient:
     def update_listings_by_sku_batch(self, listings):
         """PUT /v2/listings/by-sku with up to 1,000 SKUs per request - OnBuy
         support's own recommendation (2026-08-18) for reliable processing.
-        `listings` is [(sku, price, stock), ...]. Returns the raw per-item
-        result list; callers handle each item's optional "error" field (this
+        `listings` is [(sku, price, stock), ...] or [(sku, price, stock, delivery_template_id or None), ...] - a 4th element
+        carries the supplier's delivery template in the same request (user 2026-10-30), None/0 leaves the field out. Returns the
+        raw per-item result list; callers handle each item's optional "error" field (this
         endpoint answers 200 with per-item errors inline, so an all-or-
         nothing raise would hide partial success)."""
+        def rec(item):
+            out = {"sku": item[0], "price": item[1], "stock": item[2], "boost_marketing_commission": 0}
+            if len(item) > 3 and item[3]:
+                out["delivery_template_id"] = int(item[3])
+            return out
+
         payload = {
             "site_id": self.site_id,
             "seller_id": self.seller_id,
-            "listings": [{"sku": s, "price": p, "stock": st, "boost_marketing_commission": 0}
-                         for s, p, st in listings],
+            "listings": [rec(item) for item in listings],
         }
 
         def _do_batch():
