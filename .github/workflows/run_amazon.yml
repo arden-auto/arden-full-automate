@@ -4,11 +4,10 @@ run-name: ${{ inputs.source == 'plan' && 'Amazon Sync (Keepa) · plan' || 'Amazo
 # The same pipeline as "Generate OnBuy Feed", pointed at the Amazon tab:
 # rows are fetched through Keepa instead of eBay (keepa_client.py), then
 # priced, categorised, pushed to OnBuy and mirrored to Supabase exactly as
-# eBay rows are. Runs on the ODD hours - the eBay sync takes the even ones -
-# so each hour carries one pipeline's OnBuy pushes (240 calls/hour quota).
+# eBay rows are. LAUNCHED BY THE AMAZON DISPATCHER (amazon_dispatch.yml), not by a clock: every hour it reads the number of Amazon
+# products, this key's Keepa budget and the time since the last sync, and starts a run when one is due with a batch size that fits
+# (inputs max_products / source; amazon_plan.py has the rule). A hand run from the dashboard works as before.
 on:
-  schedule:
-    - cron: "42 3-23/4 * * *"   # every 4h / 6 a day (user 2026-11-02: Ardwick moved onto Keepa key 1 with GTV - Makstore and OpenMaal are off it): odd hours 3,7,11,15,19,23 at :42, two hours after each GTV start (1,5,9,...,21 at :07) so the two stores take turns on the shared bucket; eBay keeps the even hours (:07)
   workflow_dispatch:
     inputs:
       recategorize:
