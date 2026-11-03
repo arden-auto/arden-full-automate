@@ -20,3 +20,8 @@
 # 2026-10-31 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
 # 2026-11-01 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
 652230371254  # Amazon row 2240: row = Wahl Groomsman Endurance Cordless Grooming Ki | page = Wahl 6 Piece Haircutting Accessory Kit, Hair
+# 2026-11-03 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
+3233594898709-zzz  # Sheet1 row 8021: row = 3-Layer Large green Makeup Organiser Storage | page = (Transparent Green) A Makeup Storage Organize
+# 2026-11-03 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
+340781964260  # Amazon row 302: row = Karaoke Machine 2 Microphones, TWS, LED, Voca | page = Karaoke Machine 2 Microphones for Adults & Ki
+346581835762  # Amazon row 1714: row = Tongfushop 72 Acrylic Paint Pens Dual-Tip Bru | page = Tongfushop 72 Colours Acrylic Paint Pens, Non
