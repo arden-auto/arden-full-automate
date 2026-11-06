@@ -11,6 +11,10 @@ on:
         description: "Probe: only push the first N (0 = all)"
         required: false
         default: "0"
+      csv_path:
+        description: "Suspended-listings export committed in the repo"
+        required: false
+        default: "suspended_arden_2026-11-06.csv"
 
 concurrency:
   group: onbuy-api
@@ -39,4 +43,5 @@ jobs:
           ONBUY_SITE_ID: ${{ secrets.ONBUY_SITE_ID }}
           DRY_RUN: ${{ inputs.dry_run == 'no' && '0' || '1' }}
           LIMIT: ${{ inputs.limit }}
+          CSV_PATH: ${{ inputs.csv_path }}
         run: python revive_suspended.py
