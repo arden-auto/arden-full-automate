@@ -22,6 +22,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
+import sheet_tabs
 from onbuy_client import OnBuyClient
 from retry_utils import with_retry
 
@@ -49,25 +50,24 @@ def main():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
         __import__("json").loads(os.environ["GOOGLE_CREDENTIALS"]),
         ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"])
-    sheet = with_retry(lambda: gspread.authorize(creds).open(SHEET_NAME).sheet1,
-                       what="sheet open", max_attempts=3)
-    hdrs = [str(h).strip() for h in sheet.row_values(1)]
-    sku_col = hdrs.index("SKU") + 1
-    # Bracketed consistent read (see generate_xml.py, 2026-08-31).
-    for _ in range(3):
-        col_a = with_retry(lambda: sheet.col_values(sku_col), what="sku col", max_attempts=3)
-        rows = with_retry(lambda: sheet.get_all_records(), what="sheet read", max_attempts=3)
-        col_b = with_retry(lambda: sheet.col_values(sku_col), what="sku col recheck", max_attempts=3)
-        if col_a == col_b:
-            break
-        print("Sheet changed during the read - re-reading")
-    else:
-        raise SystemExit("sheet still being edited - aborting")
+    # Both product tabs BY NAME (2026-11-06: the original read .sheet1 - the
+    # first tab by POSITION - and only that one; see sheet_tabs.py for why
+    # position reads are banned, and the Amazon tab's rows matter too).
+    # Nothing here writes to the sheet and the push is BY SKU, so a plain
+    # get_all_records per tab is race-free for this job.
+    book = with_retry(lambda: gspread.authorize(creds).open(SHEET_NAME), what="sheet open", max_attempts=3)
+    tabs = [sheet_tabs.product_sheet(book)]
+    try:
+        amz = book.worksheet(sheet_tabs.AMAZON_TAB)
+        if amz.title != tabs[0].title:
+            tabs.append(amz)
+    except gspread.exceptions.WorksheetNotFound:
+        pass
     by_sku = {}
-    for i, r in enumerate(rows):
-        if i + 1 < len(col_a):
-            key = str(col_a[i + 1]).replace(",", "").strip()
-            if key:
+    for ws in tabs:
+        for r in with_retry(ws.get_all_records, what=f"read {ws.title}", max_attempts=3):
+            key = str(r.get("SKU") or "").replace(",", "").strip()
+            if key and key not in by_sku:
                 by_sku[key] = r
 
     # 2026-09-01 policy (user): ONLY revive SKUs that live in the full-auto
