@@ -1,0 +1,33 @@
+name: Find Row By Link (read-only)
+
+# Reads the Google Sheet only - no OnBuy, no writes - so it stays outside the onbuy-api group.
+
+on:
+  workflow_dispatch:
+    inputs:
+      needle:
+        description: "Substring of the Supplier URL, e.g. an eBay item id"
+        required: true
+      tabs:
+        description: "Tabs to search, comma-separated"
+        required: false
+        default: "Sheet1,Amazon"
+
+jobs:
+  find:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Find
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SHEET_NAME: ${{ vars.SHEET_NAME || 'Arden_Full_Feed_Master' }}
+          NEEDLE: ${{ inputs.needle }}
+          TABS: ${{ inputs.tabs }}
+        run: python find_row_by_link.py
