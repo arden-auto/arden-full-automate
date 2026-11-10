@@ -1,0 +1,26 @@
+name: Probe Header (one-off, read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tab:
+        description: "Tab to probe (Sheet1 or Amazon)"
+        default: "Sheet1"
+        required: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Probe
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          TAB: ${{ github.event.inputs.tab }}
+        run: python probe_header.py
