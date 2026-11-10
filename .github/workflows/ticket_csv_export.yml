@@ -1,0 +1,27 @@
+name: Ticket CSV Export (read-only)
+
+# Builds the price/stock CSV OnBuy asked for (323 suspended listings).
+# Reads the Google Sheet only - no OnBuy calls, no writes - outside the onbuy-api group.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Export
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: python ticket_csv_export.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ticket_price_stock
+          path: ticket_price_stock.csv
