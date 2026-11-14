@@ -29,3 +29,5 @@
 # 2026-11-11 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
 729192483087  # Amazon row 2526: row = Holibanna Colander Set 4-piece 23 X 23 X 8 cm | page = Holibanna Rice Washing Bowl Set 4 Pack Plasti
 # 2026-11-13 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
+# 2026-11-14 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
+728385905146  # Amazon row 2483: row = Portutif Handheld Vacuum Cleaner,Strong Sucti | page = Handheld Vacuum Cleaner, Powerful Suction Por
