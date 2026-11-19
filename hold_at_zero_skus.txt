@@ -37,3 +37,8 @@
 748646505212  # Sheet1 row 1380: row = 4K HDMI Splitter 1 In 2 Out, USB Powered, 3D, | page = NEW 1 INPUT 2 OUTPUT HDMI SPLITTER 2 WAY SWIT
 # 2026-11-16 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
 103729893172  # Amazon row 523: row = AstroAI 6 L Mini Fridge 2.0, 8-Can Cooler and | page = AstroAI Mini Fridge 6 Litre / 8 Can for Bedro
+# 2026-11-19 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
+8994439501714-zplus  # Sheet1 row 8653: row = Smoking Gun Smoke Infuser Meat Smoker For BBQ | page = Smoking Gun Cocktail Smoker Kit With Wood Chi
+# 2026-11-19 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
+0784133763437-zplus  # Amazon row 2949: row = TENBOOM Scooter for Kids Ages 4-7, Boys & Gir | page = TENBOOM Scooter Toys for Kids Ages 6-12/3-5
+0813784023710-zplus  # Amazon row 2964: row = Westinghouse 32 Inch Freely TV Smart Roku OS | page = Westinghouse 32" LED Roku TV,32 inch Smart TV
