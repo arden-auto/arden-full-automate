@@ -42,3 +42,4 @@
 0813784023710-zplus  # Amazon row 2964: row = Westinghouse 32 Inch Freely TV Smart Roku OS | page = Westinghouse 32" LED Roku TV,32 inch Smart TV
 # 2026-11-20 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
 291562974650  # Sheet1 row 172: row = 2X BULK BAGS TON BAGS BUILDERS GARDEN WASTE J | page = 2x Extra Large Garden Waste Bags 500L Refuse
+# 2026-11-21 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
