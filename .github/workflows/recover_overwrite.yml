@@ -1,0 +1,37 @@
+name: Recover Overwritten Rows (one-off)
+
+# Undoes the 2026-11-24 append accident on the Amazon tab: puts rows 1917-1951 back from
+# the pre-accident Drive revision and writes the 35 backup rows to rows 5866-5900 by
+# explicit range. Guarded: alignment above and below the damage must match the revision,
+# the target region must be empty, apply needs CONFIRM=recover. Sheet + Drive read only
+# besides those two writes - no OnBuy, no Keepa.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "plan = report only; apply = write (needs confirm)"
+        required: false
+        default: "plan"
+      confirm:
+        description: "type: recover (apply only)"
+        required: false
+        default: ""
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt openpyxl
+      - name: Recover
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          ACTION: ${{ inputs.action }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: python recover_overwrite.py
