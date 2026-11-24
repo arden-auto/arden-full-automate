@@ -247,6 +247,13 @@ RECATEGORIZE_FROM_TYPE = (os.getenv("RECATEGORIZE_FROM_TYPE") or "").strip().low
 # is written into its Shipping Cost (£) cell ("free" when delivery is free). EBAY_SHIPPING_COST: "1" = on,
 # "shadow" (the default) = read eBay's quote and LOG what it would change - cells and prices stay as they are,
 # "0" = off (nothing read, nothing logged).
+# 2026-11-24 (user, THIS STORE ONLY: "Allow to list the products showing 'Failed: supplier link already used' ... they have
+# different SKUs and they need to be listed double only on Ardwick store, not others"): ALLOW_DUP_SUPPLIER_LINKS=1 switches
+# OFF the one-listing-per-supplier-product rule and the one-Amazon-product-per-row rule, so a second row with its OWN SKU
+# lists the same supplier product again (an invalid-GTIN SKU creates a fresh catalogue product; a valid GTIN joins the
+# existing one). Every other guard stays: unique SKU per row, the SKU registry, restricted brands, eBay-tab SKU reuse.
+ALLOW_DUP_SUPPLIER_LINKS = (os.getenv("ALLOW_DUP_SUPPLIER_LINKS") or "").strip().lower() in ("1", "yes", "true", "on")
+
 EBAY_SHIPPING_MODE = (os.getenv("EBAY_SHIPPING_COST") or "shadow").strip().lower()
 EBAY_SHIPPING_COST = EBAY_SHIPPING_MODE in ("1", "on", "yes", "true")
 EBAY_SHIPPING_SHADOW = EBAY_SHIPPING_MODE == "shadow"
@@ -2448,7 +2455,7 @@ def main():
         if supplier == "Amazon" and sku in ebay_tab_skus:
             amazon_flag = "Failed: this SKU is already used on the eBay tab - one product per SKU"
             logger.warning("Row %d (SKU %s): %s", i, sku, amazon_flag)
-        elif supplier == "Amazon":
+        elif supplier == "Amazon" and not ALLOW_DUP_SUPPLIER_LINKS:
             # One Amazon product per row: the same ASIN under two SKUs would
             # create two OnBuy listings of one supplier product (seen live:
             # one mattress pasted on two rows). The OWNER keeps it: the first
@@ -2510,7 +2517,7 @@ def main():
         # One supplier product = one listing (user 2026-09-21): a link
         # already used on an earlier row must not be fetched and listed
         # again as a second product of the same source.
-        if not amazon_flag and url:
+        if not amazon_flag and url and not ALLOW_DUP_SUPPLIER_LINKS:
             _lid = _supplier_identity(url)
             if _lid and all_link_counts.get(_lid, 0) > 1:
                 _ft, _fr = all_link_first.get(_lid, ("", 0))

@@ -77,3 +77,14 @@ def test_supplier_identity_ebay_variants_distinct():
 def test_link_uniqueness_guard_in_source():
     assert "supplier link already used on row" in SRC
     assert "all_link_counts" in SRC and "all_link_first" in SRC
+
+
+def test_allow_dup_supplier_links_defaults_off_and_gates_both_dup_guards():
+    # 2026-11-24 (user, Ardwick only): with ALLOW_DUP_SUPPLIER_LINKS=1 a second row with its own SKU may list the same
+    # supplier product again - both the one-listing-per-supplier-product and the one-Amazon-product-per-row guards are
+    # gated. Default stays OFF (the other stores keep the rule).
+    import generate_xml
+    assert generate_xml.ALLOW_DUP_SUPPLIER_LINKS is False
+    assert SRC.count("not ALLOW_DUP_SUPPLIER_LINKS") == 2
+    assert 'elif supplier == "Amazon" and not ALLOW_DUP_SUPPLIER_LINKS:' in SRC
+    assert "if not amazon_flag and url and not ALLOW_DUP_SUPPLIER_LINKS:" in SRC
