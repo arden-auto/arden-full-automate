@@ -1,0 +1,42 @@
+name: Restore Backup Rows (sheet only)
+
+# Appends rows from a removal backup tab ("Removed <date>") back onto their product tab,
+# skipping SKUs that are already present, and clears Sync Status / timestamps so the next
+# sync picks the rows up at once. Sheet only - no OnBuy, no Keepa - so it stays outside
+# the onbuy-api group. DRY RUN by default.
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_tab:
+        description: "Backup tab to restore from (e.g. 'Removed 2026-11-24')"
+        required: true
+      skus:
+        description: "Only these SKUs, comma-separated (empty = every backup row)"
+        required: false
+        default: ""
+      dry_run:
+        description: "yes = report only; no = append the rows"
+        required: false
+        default: "yes"
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Restore
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          BACKUP_TAB: ${{ inputs.backup_tab }}
+          SKUS: ${{ inputs.skus }}
+          DRY_INPUT: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_INPUT" = "no" ]; then export DRY_RUN=0; else export DRY_RUN=1; fi
+          python restore_backup_rows.py
