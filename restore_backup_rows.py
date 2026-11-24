@@ -87,15 +87,29 @@ def main():
                 i = col_of.get(name)
                 return str(r[i]).strip() if i is not None and i < len(r) else ""
             out.append(["" if h in CLEAR_ON_RESTORE else cell(h) for h in head])
-        print(f"{tab}: restoring {len(out)} row(s) after current row {before}")
+        # NEVER the append API (2026-11-24 accident: a hidden blank row made it treat row 1916 as the
+        # table's end and OVERWRITE 35 live rows). The first free row is found from the WHOLE grid
+        # (get_all_values = last row with any value in any column) and the rows are written to an
+        # explicit range, after proving that range is empty.
+        grid = with_retry(lambda w=ws: w.get_all_values(), what=f"{tab} grid", max_attempts=3)
+        first_free = len(grid) + 1
+        print(f"{tab}: restoring {len(out)} row(s) at rows {first_free}-{first_free + len(out) - 1}")
         if DRY_RUN:
             for sku, _r in items[:40]:
                 print(f"  would restore {sku}")
             continue
-        with_retry(lambda w=ws, o=out: w.append_rows(o, value_input_option="RAW",
-                                                     table_range=f"A1"), what=f"{tab} append", max_attempts=3)
-        after = len(with_retry(lambda w=ws: w.col_values(head.index('SKU') + 1), what="count", max_attempts=3))
-        print(f"{tab}: now {after} SKU rows (was {before}) -> restored rows {before + 1}-{after}")
+        if ws.row_count < first_free + len(out) - 1:
+            with_retry(lambda w=ws, n=first_free + len(out) - 1 - ws.row_count: w.add_rows(n),
+                       what=f"{tab} grow grid", max_attempts=3)
+        end_col = gspread.utils.rowcol_to_a1(1, len(head)).rstrip("1")
+        rng = f"A{first_free}:{end_col}{first_free + len(out) - 1}"
+        current = with_retry(lambda w=ws, g=rng: w.get(g), what=f"{tab} check target", max_attempts=3)
+        if any(any(str(c).strip() for c in r) for r in current):
+            raise SystemExit(f"{tab}: target range {rng} is not empty - refusing to write")
+        with_retry(lambda w=ws, o=out, g=rng: w.update(values=o, range_name=g, value_input_option="RAW"),
+                   what=f"{tab} write", max_attempts=3)
+        after = len(with_retry(lambda w=ws: w.get_all_values(), what=f"{tab} recount", max_attempts=3))
+        print(f"{tab}: grid now ends at row {after} (was {len(grid)}) -> restored rows {first_free}-{first_free + len(out) - 1}")
     if DRY_RUN:
         print("DRY RUN - nothing written.")
 
