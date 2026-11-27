@@ -47,3 +47,4 @@
 # 2026-11-21 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
 # 2026-11-24 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
 5051502054577  # Sheet1 row 8600: row = Shower Head High Pressure Universal 30% Water | page = VEHHE Shower Head Powerful Flow with Beads Fi
+# 2026-11-27 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
