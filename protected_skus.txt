@@ -46,3 +46,7 @@
 # 2026-11-24 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
 5051502054577  # Sheet1 row 8600: row = Shower Head High Pressure Universal 30% Water | page = VEHHE Shower Head Powerful Flow with Beads Fi
 # 2026-11-27 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
+# 2026-11-28 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
+299040761198  # Sheet1 row 4873: row = For VW POLO *2009 - 2014* PLUG & PLAY Car Ste | page = 7" Wince CarPlay For VW GOLF MK5 MK6 Polo Cad
+# 2026-11-28 the nightly found these listings showing ANOTHER product - zeroed and frozen automatically; release only after the page or the row is fixed
+106971080017  # Amazon row 6862: row = AstroAI 6 L Mini Fridge 2.0, 8-Can Cooler and | page = AstroAI Mini Fridge 6 Litre / 8 Can for Bedro
